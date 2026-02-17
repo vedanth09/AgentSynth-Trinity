@@ -1,0 +1,5 @@
+langgraph
+langchain
+nemo_toolkit[all]
+pandas
+scikit-learn

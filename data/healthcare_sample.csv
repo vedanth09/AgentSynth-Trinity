@@ -1,0 +1,6 @@
+patient_id,age,diagnosis,treatment_cost
+1001,45,Hypertension,150.00
+1002,32,Type 2 Diabetes,200.50
+1003,58,Coronary Artery Disease,3500.00
+1004,24,Asthma,85.20
+1005,71,Osteoarthritis,420.00

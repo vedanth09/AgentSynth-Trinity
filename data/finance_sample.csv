@@ -1,0 +1,6 @@
+transaction_id,amount,category,is_fraud
+TXN001,50.00,Groceries,0
+TXN002,1200.00,Electronics,0
+TXN003,15.50,Transport,0
+TXN004,5000.00,Transfer,1
+TXN005,5.00,Coffee,0

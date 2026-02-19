@@ -84,27 +84,42 @@ class ReasoningGenerator:
     def process(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Processes the input state to generate semantic logic and audit logs.
-        
-        Args:
-            state (Dict[str, Any]): The current state of the workflow.
-            
-        Returns:
-            Dict[str, Any]: Updated state with reasoning and schema.
+        Handles feedback loops from Trinity Judge.
         """
-        print(f"[ReasoningGenerator] Generating semantic logic for domain: {state.get('domain', 'Unknown')}...")
-        
         domain = state.get("domain", "Healthcare")
         goal = state.get("goal", "General Synthesis")
+        iteration = state.get("iteration", 0)
+        feedback = state.get("judge_feedback", None)
         
-        # 1. Select Prompt (Simulated)
+        print(f"[ReasoningGenerator] Generating logic (Iter {iteration}). Domain: {domain}")
+        
+        # 1. Select Prompt
         system_prompt = self.prompts.get(domain, self.prompts["Healthcare"])
         
-        # 2. Generate Reasoning (Simulated CoT)
+        # 2. Refine Logic based on Feedback
+        if feedback and iteration > 0:
+            print(f"   > Refining based on Feedback: {feedback}")
+            # Simulated refining logic
+            if "Increase Noise" in feedback:
+                 reasoning_note = "Received privacy alert. Increasing Epsilon strictness."
+                 # Logic to trigger lower epsilon in Privacy Guard via reasoning text
+            elif "Fidelity too low" in feedback:
+                 reasoning_note = "Fidelity issue detected. Enforcing stricter constraints on correlation."
+            else:
+                 reasoning_note = f"Adjusting generation parameters based on: {feedback}"
+        else:
+            reasoning_note = "Initial generation pass."
+
+        # 3. Generate CoT (Simulated)
         reasoning_output = self._generate_cot_reasoning(domain, goal)
         
-        # 3. Update State
+        # Append refinement note to compliance reasoning for observability
+        original_reasoning = reasoning_output["compliance_check"]["reasoning"]
+        reasoning_output["compliance_check"]["reasoning"] = f"{original_reasoning} [Refinement: {reasoning_note}]"
+        
+        # 4. Update State
         state["compliance_check"] = reasoning_output["compliance_check"]
         state["schema_skeleton"] = reasoning_output["logic_skeleton"]
-        state["reasoning_trace"] = f"Processed with prompt: {system_prompt.strip()}"
+        state["reasoning_trace"] = f"Processed with prompt: {system_prompt.strip()} | Refinement: {reasoning_note}"
         
         return state

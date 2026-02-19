@@ -12,6 +12,7 @@ from utils.audit_logger import AuditLogger
 from agents.reasoning_generator import ReasoningGenerator
 from agents.statistical_critic import StatisticalCritic
 from agents.privacy_guard import PrivacyGuard
+from agents.trinity_judge import TrinityJudge
 
 # Define the state of our graph
 class AgentState(TypedDict):
@@ -19,6 +20,8 @@ class AgentState(TypedDict):
     raw_data: Optional[Any]
     domain: str
     goal: str
+    iteration: int # Track loop iterations
+    epsilon_input: Optional[float] # User override for privacy budget
     
     # Reasoning Outputs
     reasoning_trace: Optional[str]
@@ -33,11 +36,17 @@ class AgentState(TypedDict):
     privacy_status: Optional[str]
     privacy_proof: Optional[Dict[str, Any]]
     safe_data_asset: Optional[Any]
+    
+    # Judge Outputs
+    trinity_scorecard: Optional[Dict[str, Any]]
+    judge_decision: Optional[str]
+    judge_feedback: Optional[str]
 
 # Initialize Agents & Utils
 reasoning_generator = ReasoningGenerator()
 statistical_critic = StatisticalCritic()
 privacy_guard = PrivacyGuard()
+trinity_judge = TrinityJudge()
 audit_logger = AuditLogger()
 
 # Node Functions
@@ -52,34 +61,123 @@ def privacy_node(state: AgentState) -> AgentState:
     new_state = privacy_guard.process(state)
     if new_state.get("privacy_status") != "Privacy-Cleared":
         print("!!! PRIVACY COMPLIANCE FAILED !!! - Stopping Flow")
-        # In a more complex graph, we might route to an error handling node
+        new_state["judge_decision"] = "Reject"
+        new_state["judge_feedback"] = "Privacy Guard failed to sanitize data."
     return new_state
+
+def judge_node(state: AgentState) -> AgentState:
+    return trinity_judge.evaluate(state)
 
 def logging_node(state: AgentState) -> AgentState:
     """
     Final node to capture the audit log.
     """
-    print("[Orchestrator] Logging audit trail...")
+    print("[Orchestrator] Logic Approved. Logging final audit trail...")
     
     timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     
     # Construct the Log
+    # Merge schema skeleton with other metrics for the final log
+    final_logic = state.get("schema_skeleton", {}).copy()
+    final_logic["pilot_winner"] = state.get("model_selection")
+    final_logic["trinity_scorecard"] = state.get("trinity_scorecard")
+    
     audit_logger.log_event(
         timestamp=timestamp,
-        agent_name="AgentSynth_Trinity_v1", # Unified Agent Name for final log
+        agent_name="AgentSynth_Trinity_v1", 
         domain=state.get("domain", "Unknown"),
         goal=state.get("goal", "Unknown"),
         compliance_check=state.get("compliance_check", {}),
-        logic_skeleton=state.get("schema_skeleton", {
-            "pilot_winner": state.get("model_selection"),
-            "pilot_metrics": state.get("pilot_metrics")
-        }),
+        logic_skeleton=final_logic,
         privacy_proof=state.get("privacy_proof", {})
     )
     return state
 
+# Conditional Logic
+def should_continue(state: AgentState):
+    decision = state.get("judge_decision")
+    iteration = state.get("iteration", 0)
+    
+    if decision == "Approve":
+        return "logging"
+    elif iteration >= 3:
+        print("[Orchestrator] Max iterations reached. Ending loop.")
+        return "logging" # Log whatever we have, even if rejected, or route to error
+    else:
+        print(f"[Orchestrator] Judge Rejected ({decision}). Iterating...")
+        return "reasoning"
+
+def run_trinity_pipeline(data: Any, domain: str, epsilon: Optional[float] = None) -> Dict[str, Any]:
+    """
+    Executes the full AgentSynth-Trinity pipeline.
+    Suitable for calling from UI or external scripts.
+    """
+    print(f"Initializing Trinity Pipeline for {domain} (Epsilon={epsilon})...")
+
+    # 1. Build Graph
+    workflow = StateGraph(AgentState)
+
+    # Add nodes
+    workflow.add_node("reasoning", reasoning_node)
+    workflow.add_node("critic", critic_node)
+    workflow.add_node("privacy", privacy_node)
+    workflow.add_node("judge", judge_node)
+    workflow.add_node("logging", logging_node)
+
+    # Add edges
+    workflow.add_edge("reasoning", "critic")
+    workflow.add_edge("critic", "privacy")
+    workflow.add_edge("privacy", "judge")
+    
+    # Feedback settings
+    workflow.add_conditional_edges(
+        "judge",
+        should_continue,
+        {
+            "logging": "logging",
+            "reasoning": "reasoning"
+        }
+    )
+    
+    workflow.add_edge("logging", END)
+
+    # Set entry point
+    workflow.set_entry_point("reasoning")
+
+    # Compile the graph
+    app = workflow.compile()
+
+    # 2. Execute
+    initial_state = AgentState(
+        raw_data=data,
+        domain=domain,
+        goal=f"Synthesize {domain} data corpus",
+        iteration=0,
+        epsilon_input=epsilon,
+        reasoning_trace=None,
+        compliance_check=None,
+        schema_skeleton=None,
+        model_selection=None,
+        pilot_metrics=None,
+        privacy_status=None,
+        privacy_proof=None,
+        safe_data_asset=None,
+        trinity_scorecard=None,
+        judge_decision=None,
+        judge_feedback=None
+    )
+    
+    try:
+        final_state = app.invoke(initial_state)
+        return final_state
+    except Exception as e:
+        print(f"Error during execution: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"judge_decision": "Error", "judge_feedback": str(e)}
+
 def main():
-    print("Initializing AgentSynth-Trinity Orchestrator (Sprint 2)...")
+    print("Initializing AgentSynth-Trinity Orchestrator (CLI Mode)...")
     
     # 1. Load Data
     data_loader = DataLoader()
@@ -90,47 +188,12 @@ def main():
         print("Failed to load initial data. Exiting.")
         return
 
-    # 2. Build Graph
-    workflow = StateGraph(AgentState)
-
-    # Add nodes
-    workflow.add_node("reasoning", reasoning_node)
-    workflow.add_node("critic", critic_node)
-    workflow.add_node("privacy", privacy_node)
-    workflow.add_node("logging", logging_node)
-
-    # Add edges
-    workflow.add_edge("reasoning", "critic")
-    workflow.add_edge("critic", "privacy")
-    workflow.add_edge("privacy", "logging")
-    workflow.add_edge("logging", END)
-
-    # Set entry point
-    workflow.set_entry_point("reasoning")
-
-    # Compile the graph
-    app = workflow.compile()
-
-    # 3. Execute
-    initial_state = AgentState(
-        raw_data=df,
-        domain="Healthcare",
-        goal="Synthesize rare disease cohort (Disease_X)",
-        reasoning_trace=None,
-        compliance_check=None,
-        schema_skeleton=None,
-        model_selection=None,
-        pilot_metrics=None,
-        privacy_status=None
-    )
+    # 2. Run Pipeline
+    result = run_trinity_pipeline(df, "Healthcare")
     
-    print("\n--- Starting Agentic Loop ---")
-    try:
-        result = app.invoke(initial_state)
-        print("--- Agentic Loop Completed ---\n")
-    except Exception as e:
-        print(f"Error during execution: {e}")
-        return
+    print("\n--- Pipeline Result ---")
+    print(f"Data Shape: {result.get('safe_data_asset', pd.DataFrame()).shape}")
+    print(f"Decision: {result.get('judge_decision')}")
 
 if __name__ == "__main__":
     main()

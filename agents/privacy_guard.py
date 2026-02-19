@@ -40,22 +40,24 @@ class PrivacyGuard:
         
         raw_data = state.get("raw_data")
         domain = state.get("domain", "General")
+        user_epsilon = state.get("epsilon_input") # Check for user override
         
         # 1. Determine Epsilon (Privacy Budget)
-        # In a real scenario, ReasoningGenerator might suggest this. 
-        # Here we derive it from the domain sensitivity.
         risk_level = "high" if domain in ["Healthcare", "Finance"] else "medium"
         
-        # Check if Reasoning Generator suggested a specific constraint
-        compliance_check = state.get("compliance_check", {})
-        reasoning_text = compliance_check.get("reasoning", "").lower()
-        
-        if "lower epsilon" in reasoning_text or "epsilon=0.5" in reasoning_text:
-             epsilon = 0.5
+        if user_epsilon is not None:
+             epsilon = float(user_epsilon)
+             print(f"[PrivacyGuard] Using User-Defined Epsilon: {epsilon}")
         else:
-             epsilon = PrivacyBudget.get_budget(risk_level)
-
-        print(f"[PrivacyGuard] Selected Epsilon: {epsilon} (Risk Level: {risk_level})")
+            # Check if Reasoning Generator suggested a specific constraint
+            compliance_check = state.get("compliance_check", {})
+            reasoning_text = compliance_check.get("reasoning", "").lower()
+            
+            if "lower epsilon" in reasoning_text or "epsilon=0.5" in reasoning_text:
+                 epsilon = 0.5
+            else:
+                 epsilon = PrivacyBudget.get_budget(risk_level)
+            print(f"[PrivacyGuard] Selected Auto-Epsilon: {epsilon} (Risk Level: {risk_level})")
 
         # 2. Apply Differential Privacy
         safe_data, noise_type = self._apply_differential_privacy(raw_data, epsilon)

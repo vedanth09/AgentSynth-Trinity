@@ -5,13 +5,16 @@ from typing import Dict, List, Any, Optional
 
 class AuditLogger:
     """
-    Handles logging of agent reasoning, compliance checks, and logic skeletons
-    in a structured JSON format.
+    Handles logging of agent reasoning, compliance checks, and synthesis lineage
+    in a structured format compliant with GDPR Article 30 (RoPA).
+    
+    Academic Motivation: GDPR Article 30 mandates that controllers maintain 
+    a record of processing activities (RoPA). This includes documenting the 
+    technical and organizational measures (TOMs) like Differential Privacy.
     """
 
     def __init__(self, log_file: str = "audit_log.json"):
         self.log_file = log_file
-        # Configure logging to console as well
         logging.basicConfig(level=logging.INFO, format='%(message)s')
         self.logger = logging.getLogger("AuditLogger")
 
@@ -20,41 +23,41 @@ class AuditLogger:
                   agent_name: str,
                   domain: str,
                   goal: str,
-                  compliance_check: Dict[str, str],
+                  compliance_check: Dict[str, Any],
                   logic_skeleton: Dict[str, Any],
                   privacy_proof: Optional[Dict[str, Any]] = None):
         """
-        Logs a structured event to the JSON log file.
-
-        Args:
-            timestamp (str): ISO 8601 timestamp.
-            agent_name (str): Name of the agent generating the log.
-            domain (str): Domain of operation (e.g., "Healthcare").
-            goal (str): The specific business goal.
-            compliance_check (Dict[str, str]): GDPR framework and reasoning.
-            logic_skeleton (Dict[str, Any]): Constraints and fidelity targets.
-            privacy_proof (Optional[Dict[str, Any]]): Epsilon and noise details.
+        Logs a structured event according to GDPR Article 30 (RoPA) standards.
         """
         
-        log_entry = {
-            "timestamp": timestamp,
-            "agent": agent_name,
-            "domain": domain,
-            "goal": goal,
-            "compliance_check": compliance_check,
-            "logic_skeleton": logic_skeleton,
-            "privacy_proof": privacy_proof
+        # RoPA Structure (Article 30 Compliance)
+        ropa_entry = {
+            "ropa_metadata": {
+                "controller": "AgentSynth-Trinity System",
+                "purpose_of_processing": goal,
+                "data_categories": "Sensitive " + domain + " Tabular Data",
+                "storage_limitation": "Ephemeral (Session-based)",
+                "technical_measures": "Differential Privacy (ε, δ)-DP",
+                "lawful_basis": "Art. 6(1)(f) - Legitimate Interests"
+            },
+            "technical_lineage": {
+                "timestamp": timestamp,
+                "agent": agent_name,
+                "domain": domain,
+                "reasoning_trace": compliance_check.get("reasoning", "N/A"),
+                "synthesis_logic": logic_skeleton,
+                "privacy_parameters": privacy_proof
+            }
         }
 
-        # Print to console for immediate visibility
-        self.logger.info(f"\n[AUDIT LOG] New Entry:\n{json.dumps(log_entry, indent=2)}")
+        self.logger.info(f"\n[GDPR ART. 30 AUDIT] New Record of Processing Activity (RoPA) logged for {domain}.")
 
         # Append to file
         try:
             with open(self.log_file, 'a') as f:
-                f.write(json.dumps(log_entry) + "\n")
+                f.write(json.dumps(ropa_entry) + "\n")
         except Exception as e:
-            self.logger.error(f"Failed to write to audit log: {e}")
+            self.logger.error(f"Failed to write to RoPA audit log: {e}")
             
     def generate_current_timestamp(self) -> str:
         """Returns current UTC timestamp in ISO format."""

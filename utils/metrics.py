@@ -80,18 +80,60 @@ def calculate_correlation_similarity(real_data: pd.DataFrame, synthetic_data: pd
     # return difference magnitude. Let's return 1 / (1 + diff) for a 0-1 score roughly
     return 1.0 / (1.0 + diff)
 
+from sklearn.metrics.pairwise import rbf_kernel
+
+def calculate_mmd(real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> float:
+    """
+    Calculates Maximum Mean Discrepancy (MMD) with RBF kernel.
+    
+    Academic Motivation: MMD (Gretton et al., 2012) is a kernel-based test statistic 
+    that measures the distance between distributions in a reproducing kernel 
+    Hilbert space (RKHS).
+    """
+    numeric_cols = real_data.select_dtypes(include=[np.number]).columns
+    if len(numeric_cols) == 0: return 0.0
+    
+    X = real_data[numeric_cols].dropna().values[:500]
+    Y = synthetic_data[numeric_cols].dropna().values[:500]
+    
+    K_XX = rbf_kernel(X, X)
+    K_YY = rbf_kernel(Y, Y)
+    K_XY = rbf_kernel(X, Y)
+    
+    mmd = K_XX.mean() + K_YY.mean() - 2 * K_XY.mean()
+    return float(np.sqrt(max(mmd, 0)))
+
+def calculate_kl_divergence(real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> float:
+    """
+    Calculates average KL-Divergence across all features.
+    """
+    divergences = []
+    for col in real_data.columns:
+        if col in synthetic_data.columns:
+            p = real_data[col].value_counts(normalize=True).sort_index()
+            q = synthetic_data[col].value_counts(normalize=True).sort_index()
+            
+            # Align
+            all_idx = p.index.union(q.index)
+            p_vals = np.array([p.get(i, 1e-10) for i in all_idx])
+            q_vals = np.array([q.get(i, 1e-10) for i in all_idx])
+            
+            divergences.append(entropy(p_vals, q_vals))
+            
+    return float(np.mean(divergences)) if divergences else 0.0
+
 def train_test_utility_evaluation(real_data: pd.DataFrame, 
                                   synthetic_data: pd.DataFrame, 
                                   target_col: str) -> Dict[str, float]:
     """
-    TSTR (Train-Synthetic-Test-Real) Evaluation using XGBoost.
-    Trains on Synthetic, Tests on Real.
-    Returns Accuracy and F1 Score relative to Real-Real Baseline.
+    Advanced Utility: TSTR (Train-Synthetic-Test-Real) and TRTS (Train-Real-Test-Synthetic).
+    
+    Academic Motivation: The TSTR/TRTS accuracy gap (Jordon et al., 2018) measures 
+    preservation of decision boundaries across the real-synthetic divide.
     """
     if target_col not in real_data.columns or target_col not in synthetic_data.columns:
-        return {"accuracy_drop": 0.0, "f1_drop": 0.0}
+        return {"performance_drop": 0.0}
 
-    # Preprocessing (Simple Label Encoding for simplicity in this prototype)
     def preprocess(df):
         df_encoded = df.copy()
         for col in df_encoded.select_dtypes(include=['object']):
@@ -105,47 +147,35 @@ def train_test_utility_evaluation(real_data: pd.DataFrame,
         
         X_real = real_proc.drop(columns=[target_col])
         y_real = real_proc[target_col]
-        
         X_synth = synth_proc.drop(columns=[target_col])
         y_synth = synth_proc[target_col]
         
-        # 1. Baseline: Train Real, Test Real
-        X_train, X_test, y_train, y_test = train_test_split(X_real, y_real, test_size=0.3, random_state=42)
-        model_baseline = XGBClassifier(eval_metric='logloss')
-        model_baseline.fit(X_train, y_train)
-        preds_baseline = model_baseline.predict(X_test)
-        acc_baseline = accuracy_score(y_test, preds_baseline)
+        X_r_train, X_r_test, y_r_train, y_r_test = train_test_split(X_real, y_real, test_size=0.3)
         
-        # 2. TSTR: Train Synthetic, Test Real
-        model_tstr = XGBClassifier(eval_metric='logloss')
-        model_tstr.fit(X_synth, y_synth)
-        preds_tstr = model_tstr.predict(X_test) # Test on Real Holdout
-        acc_tstr = accuracy_score(y_test, preds_tstr)
+        # 1. Baseline (R -> R)
+        model_rr = XGBClassifier().fit(X_r_train, y_r_train)
+        acc_rr = accuracy_score(y_r_test, model_rr.predict(X_r_test))
         
-        drop = (acc_baseline - acc_tstr) / acc_baseline if acc_baseline > 0 else 0.0
+        # 2. TSTR (S -> R)
+        model_sr = XGBClassifier().fit(X_synth, y_synth)
+        acc_sr = accuracy_score(y_r_test, model_sr.predict(X_r_test))
+        
+        # 3. TRTS (R -> S)
+        acc_rs = accuracy_score(y_synth, model_rr.predict(X_synth))
         
         return {
-            "baseline_accuracy": float(acc_baseline),
-            "tstr_accuracy": float(acc_tstr),
-            "performance_drop": float(drop) * 100 # Percentage
+            "baseline_accuracy": float(acc_rr),
+            "tstr_accuracy": float(acc_sr),
+            "trts_accuracy": float(acc_rs),
+            "performance_drop": float(max(0, acc_rr - acc_sr)) * 100
         }
     except Exception as e:
-        print(f"Utility Eval Failed: {e}")
+        print(f"Utility Error: {e}")
         return {"performance_drop": 100.0}
 
 def check_linkability(real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> Dict[str, Any]:
-    """
-    Checks for exact row matches between real and synthetic data (Privacy Audit).
-    """
-    # Simply check intersections
-    # Convert to tuples for hashable comparison
+    """Privacy Audit: Exact matches."""
     real_set = set(map(tuple, real_data.values))
     synth_set = set(map(tuple, synthetic_data.values))
-    
-    exact_matches = real_set.intersection(synth_set)
-    count = len(exact_matches)
-    
-    return {
-        "exact_matches": count,
-        "is_compliant": count == 0
-    }
+    matches = len(real_set.intersection(synth_set))
+    return {"exact_matches": matches, "is_compliant": matches == 0}

@@ -61,3 +61,19 @@ Stress-testing fraud detection models and risk management systems using synthesi
 *   **Privacy**: SmartNoise-Synth, Opacus (Differential Privacy)
 *   **Agents**: LangGraph / NVIDIA NeMo Agent Toolkit
 *   **Evaluation**: SDV (Synthetic Data Vault), Scikit-learn
+## 🚀 Quick Start (Thesis Demo)
+
+1. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. **Set API Key**:
+   ```bash
+   export OPENAI_API_KEY="your-key-here"
+   ```
+3. **Run the Dashboard**:
+   ```bash
+   streamlit run app.py
+   ```
+4. **Natural Language Input**: Use the left panel to describe your data needs (e.g., *"Generate 500 medical records with high privacy"*).
+5. **Download Assets**: Once synthesis and evaluation are complete, download the CSV data and Trinity compliance report from the dashboard.

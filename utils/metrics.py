@@ -96,6 +96,12 @@ def calculate_mmd(real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> floa
     X = real_data[numeric_cols].dropna().values[:500]
     Y = synthetic_data[numeric_cols].dropna().values[:500]
     
+    # Scrub Inf/NaN
+    X = X[np.isfinite(X).all(axis=1)]
+    Y = Y[np.isfinite(Y).all(axis=1)]
+    
+    if len(X) == 0 or len(Y) == 0: return 0.0
+    
     K_XX = rbf_kernel(X, X)
     K_YY = rbf_kernel(Y, Y)
     K_XY = rbf_kernel(X, Y)
@@ -149,6 +155,16 @@ def train_test_utility_evaluation(real_data: pd.DataFrame,
         y_real = real_proc[target_col]
         X_synth = synth_proc.drop(columns=[target_col])
         y_synth = synth_proc[target_col]
+
+        # Scrub Inf
+        real_mask = np.isfinite(X_real.select_dtypes(include=[np.number])).all(axis=1)
+        X_real, y_real = X_real[real_mask], y_real[real_mask]
+        
+        synth_mask = np.isfinite(X_synth.select_dtypes(include=[np.number])).all(axis=1)
+        X_synth, y_synth = X_synth[synth_mask], y_synth[synth_mask]
+        
+        if len(X_real) < 10 or len(X_synth) < 10:
+            return {"performance_drop": 0.0}
         
         X_r_train, X_r_test, y_r_train, y_r_test = train_test_split(X_real, y_real, test_size=0.3)
         

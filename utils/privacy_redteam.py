@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from typing import List
 
 class PrivacyRedTeam:
     """
@@ -37,8 +38,14 @@ class PrivacyRedTeam:
         # Use numerical columns only for simple attack model
         X_num = X.select_dtypes(include=[np.number])
         
-        if X_num.shape[1] == 0:
-            return 0.5 # Cannot attack if no numerical data
+        # Scrub Inf
+        if X_num.shape[1] > 0:
+            finite_mask = np.isfinite(X_num).all(axis=1)
+            X_num = X_num[finite_mask]
+            y = y[finite_mask]
+
+        if X_num.shape[1] == 0 or len(X_num) < 10:
+            return 0.5 # Cannot attack if no numerical data or too few samples
             
         X_train, X_test, y_train, y_test = train_test_split(X_num, y, test_size=0.3)
         

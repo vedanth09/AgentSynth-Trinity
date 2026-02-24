@@ -1,8 +1,6 @@
 import os
 import sys
 import asyncio
-import streamlit as st
-import pandas as pd
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, ConfigDict
 from langgraph.graph import StateGraph, END
@@ -19,7 +17,6 @@ from agents.privacy_guard import PrivacyGuard
 from agents.trinity_judge import TrinityJudge
 from agents.meta_agent import MetaAgent
 from utils.reporter import TrinityReporter
-from utils.trace_viz import TraceVisualizer
 
 # --- Agent State Definition (Pydantic v2) ---
 class AgentState(BaseModel):
@@ -31,6 +28,8 @@ class AgentState(BaseModel):
     goal: str = "General Synthesis"
     iteration: int = 0
     epsilon_input: Optional[float] = 1.0
+    num_rows: Optional[int] = 100
+    selected_model_type: str = "auto" # auto, timegan, vae, diffusion
     
     # Outputs
     recommended_model: Optional[str] = None
@@ -55,14 +54,11 @@ trinity_judge = TrinityJudge()
 meta_agent = MetaAgent()
 audit_logger = AuditLogger()
 reporter = TrinityReporter()
-viz = TraceVisualizer()
 
 # --- Async Node Functions ---
 async def meta_agent_node(state: AgentState) -> Dict:
     state.trace.append("Meta-Agent: Consulting historical knowledge base...")
-    # LangGraph expectation: return a dictionary overlay
-    res = meta_agent.process(state.model_dump())
-    return res
+    return meta_agent.process(state.model_dump())
 
 async def reasoning_node(state: AgentState) -> Dict:
     state.trace.append("Reasoning Generator: Analyzing domain semantics...")
@@ -81,7 +77,7 @@ async def judge_node(state: AgentState) -> Dict:
     return await trinity_judge.evaluate(state.model_dump())
 
 async def logging_node(state: AgentState) -> Dict:
-    state.trace.append("Orchestrator: Flow Approved. Finalizing audit lineage and compliance records.")
+    state.trace.append("Orchestrator: Flow Approved. Finalizing audit lineage.")
     timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     audit_logger.log_event(
         timestamp=timestamp, agent_name="Trinity_v2_Pydantic", 
@@ -117,70 +113,20 @@ def build_graph():
     workflow.add_edge("logging", END)
     return workflow.compile()
 
-# --- Streamlit UI ---
-def main():
-    st.set_page_config(page_title="AgentSynth-Trinity v2", page_icon="🛡️", layout="wide")
-    
-    st.title("🛡️ AgentSynth-Trinity: Research-Grade Data Synthesis")
-    st.markdown("### Multi-Agent Orchestration for Privacy-Preserving GenAI (v2.0)")
-
-    st.sidebar.header("🎛️ Synthesis Parameters")
-    domain = st.sidebar.selectbox("Domain", ["Healthcare", "Finance"])
-    epsilon = st.sidebar.slider("Privacy Budget (ε)", 0.1, 5.0, 1.0)
-    st.sidebar.divider()
-    st.sidebar.markdown("#### Tech Stack")
-    st.sidebar.code("LangGraph | ChromaDB | MLflow | Pydantic v2")
-
-    uploaded_file = st.file_uploader("Upload Real Dataset (CSV)", type="csv")
-    
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        st.success(f"Loaded {len(df)} records.")
-        
-        if st.button("🚀 Execute Trinity Pipeline"):
-            with st.status("Orchestrating Agents...", expanded=True) as status:
-                initial_state = AgentState(
-                    raw_data=df, domain=domain, iteration=0, epsilon_input=epsilon,
-                    goal=f"Synthesize {domain} dataset via AgentSynth-Trinity"
-                )
-                
-                app = build_graph()
-                final_output = asyncio.run(app.ainvoke(initial_state))
-                # State in LangGraph is updated dict-wise; cast back for easier UI access
-                final_state = AgentState(**final_output)
-                status.update(label="Synthesis Complete!", state="complete")
-
-            # --- Results ---
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                st.subheader("⚖️ Trinity Scorecard (Radar Visualization)")
-                if final_state.trinity_scorecard:
-                    fig = reporter.generate_radar_chart(final_state.trinity_scorecard)
-                    st.pyplot(fig)
-                
-                st.subheader("📊 Quantitative Benchmark Metrics")
-                st.json(final_state.trinity_scorecard)
-
-            with col2:
-                st.subheader("📜 Compliance Registry")
-                if final_state.judge_decision == "Approve":
-                    st.success(f"Decision: **COMPLIANCE APPROVED**")
-                else:
-                    st.error(f"Decision: **{final_state.judge_decision}**")
-                
-                st.write(f"Refinement Trace: {final_state.judge_feedback}")
-                
-                if final_state.safe_data_asset is not None:
-                    csv = final_state.safe_data_asset.to_csv(index=False)
-                    if st.download_button("📥 Download Synthetic Data", csv, "synthetic_data.csv", "text/csv"):
-                        st.balloons()
-
-            # --- Audit & Trace ---
-            st.divider()
-            viz.render_trace(final_state.trace)
-            st.subheader("📁 Record of Processing Activity (RoPA)")
-            st.json(final_state.privacy_proof or {})
+async def run_trinity_pipeline(initial_state: AgentState):
+    """
+    Exposes the Trinity pipeline as an async generator for real-time streaming.
+    """
+    app = build_graph()
+    async for event in app.astream(initial_state.model_dump()):
+        yield event
 
 if __name__ == "__main__":
-    main()
+    # CLI fallback for testing
+    import pandas as pd
+    data = pd.DataFrame({"age": [25, 30], "income": [50000, 60000]})
+    config = AgentState(raw_data=data, domain="Healthcare")
+    async def test_run():
+        async for step in run_trinity_pipeline(config):
+            print(f"Step: {list(step.keys())[0]}")
+    asyncio.run(test_run())

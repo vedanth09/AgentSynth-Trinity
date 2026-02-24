@@ -35,6 +35,7 @@ class PrivacyGuard:
         print("[PrivacyGuard] specific task: Analyzing (ε, δ) Budget and Applying RDP-DP...")
         
         raw_data = state.get("raw_data")
+        synth_candidate = state.get("safe_data_asset")
         domain = state.get("domain", "General")
         user_epsilon = state.get("epsilon_input")
         iteration = state.get("iteration", 1)
@@ -54,7 +55,9 @@ class PrivacyGuard:
         print(f"[PrivacyGuard] RDP Budget: ε={total_epsilon:.2f}, δ={delta} (Iter {iteration})")
 
         # 2. Apply Differential Privacy
-        safe_data, noise_type = self._apply_differential_privacy(raw_data, total_epsilon)
+        # If we have a synth candidate from Critic, sanitize that. Otherwise synthesis from raw.
+        target_data = synth_candidate if synth_candidate is not None else raw_data
+        safe_data, noise_type = self._apply_differential_privacy(target_data, total_epsilon)
         
         # 3. Validation Check
         if safe_data is not None:
@@ -111,7 +114,10 @@ class PrivacyGuard:
         scale = 1.0 / epsilon
         for col in numeric_cols:
             noise = np.random.laplace(0, scale, size=len(data))
-            safe_data[col] += noise
+            # Clip to original range + some buffer to avoid Inf and maintain plausibility
+            min_val = data[col].min()
+            max_val = data[col].max()
+            safe_data[col] = (data[col] + noise).clip(min_val - scale, max_val + scale)
             
         return safe_data
 

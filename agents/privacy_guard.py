@@ -39,6 +39,8 @@ class PrivacyGuard:
         domain = state.get("domain", "General")
         user_epsilon = state.get("epsilon_input")
         iteration = state.get("iteration", 1)
+        if iteration < 1:
+            iteration = 1
         
         # 1. Determine Epsilon & Delta
         delta = 1e-5 # Standard research-grade delta (smaller than 1/n)

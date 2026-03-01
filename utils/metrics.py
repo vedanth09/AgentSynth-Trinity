@@ -151,10 +151,20 @@ def train_test_utility_evaluation(real_data: pd.DataFrame,
         real_proc = preprocess(real_data.dropna())
         synth_proc = preprocess(synthetic_data.dropna())
         
+        # Label Encode the Target Column specifically for XGBoost compatibility
+        le_target = LabelEncoder()
+        
         X_real = real_proc.drop(columns=[target_col])
-        y_real = real_proc[target_col]
+        y_real = pd.Series(le_target.fit_transform(real_proc[target_col]))
+        
         X_synth = synth_proc.drop(columns=[target_col])
-        y_synth = synth_proc[target_col]
+        # Handle unseen labels in synthetic data by falling back to -1 or similar, but
+        # since TRTS trains on synthetic and tests on real, it's safer to fit a new encoder
+        # per dataset or fit on the union. Let's fit on the union to be safe.
+        le_target.fit(pd.concat([real_proc[target_col], synth_proc[target_col]]))
+        
+        y_real = pd.Series(le_target.transform(real_proc[target_col]))
+        y_synth = pd.Series(le_target.transform(synth_proc[target_col]))
 
         # Scrub Inf
         real_mask = np.isfinite(X_real.select_dtypes(include=[np.number])).all(axis=1)

@@ -42,7 +42,10 @@ class ModelLibrary:
 
             if model_name in ["TimeGAN", "DDPM"]:
                 # Custom wrappers
-                synthesizer = SynthesizerClass() # Internal logic handles dims
+                if model_name == "DDPM":
+                    synthesizer = SynthesizerClass(input_dim=real_data.shape[1])
+                else:
+                    synthesizer = SynthesizerClass() # Internal logic handles dims
                 synthesizer.fit(real_data)
                 synthetic_data = synthesizer.sample(num_samples=len(real_data))
             else:

@@ -1,10 +1,12 @@
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import asyncio
 import plotly.express as px
 import plotly.graph_objects as go
-import os
 import json
 from datetime import datetime
 from main import run_trinity_pipeline, AgentState

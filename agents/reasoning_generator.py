@@ -68,3 +68,108 @@ class ReasoningGenerator:
         state["schema_skeleton"] = schema_skeleton
         
         return state
+import pandas as pd
+from typing import Dict, Any, List, Optional
+from utils.domain_checkers import DomainIntelligence
+from utils.domain_generator import DomainDataGenerator
+
+
+class ReasoningGenerator:
+    """
+    Agent responsible for semantic understanding and schema design.
+    Grounds reasoning in industry standards like FHIR and Basel III.
+
+    KEY UPGRADE — Cold-Start Generation:
+    When no real input data is provided, this agent generates a statistically
+    grounded seed dataset from domain priors (DomainDataGenerator) instead of
+    failing or requiring uploaded files. This enables the framework to operate
+    in a true zero-data regime.
+
+    Academic Motivation: Prior-based generation (Fonseca & Watson, 2023) allows
+    synthesis frameworks to operate without real data by encoding domain knowledge
+    as generative priors. Contextual Integrity (Nissenbaum, 2004) ensures synthesis
+    respects the semantic 'spirit' of the domain, not just surface distributions.
+    """
+
+    def __init__(self):
+        self.domain_checker = DomainIntelligence()
+        self.domain_generator = DomainDataGenerator()
+
+    async def process(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        domain    = state.get("domain", "Healthcare")
+        df        = state.get("raw_data")
+        iteration = state.get("iteration", 0)
+        feedback  = state.get("judge_feedback", None)
+        num_rows  = state.get("num_rows", 500)
+        seed      = state.get("seed", 42)
+
+        print(f"[ReasoningGenerator] Iter {iteration} | Domain: {domain}")
+
+        # ── Cold-start: no real data supplied ──────────────────────────────────
+        if df is None or (hasattr(df, '__len__') and len(df) == 0):
+            print(f"[ReasoningGenerator] No input data detected → "
+                  f"activating cold-start generation from {domain} domain priors.")
+            df = self.domain_generator.generate(
+                domain=domain,
+                n_rows=max(num_rows, 200),   # generate enough for GAN training
+                seed=seed,
+            )
+            state["raw_data"] = df
+            state["cold_start"] = True
+            print(f"[ReasoningGenerator] Cold-start seed: {len(df)} rows, "
+                  f"{len(df.columns)} columns → {list(df.columns)}")
+
+        # ── Feedback-driven schema refinement on re-iterations ─────────────────
+        elif iteration > 0 and feedback:
+            print(f"[ReasoningGenerator] Refining schema based on judge feedback: {feedback}")
+            # On fidelity failure: regenerate with larger seed for better GAN training
+            if "Fidelity" in feedback:
+                extra = self.domain_generator.generate(
+                    domain=domain,
+                    n_rows=min(num_rows * 2, 1000),
+                    seed=seed + iteration,
+                )
+                df = pd.concat([df, extra]).drop_duplicates().reset_index(drop=True)
+                state["raw_data"] = df
+                print(f"[ReasoningGenerator] Augmented seed to {len(df)} rows for fidelity retry.")
+
+        columns = df.columns.tolist()
+
+        # ── Semantic compliance check ──────────────────────────────────────────
+        if domain == "Healthcare":
+            compliance_check = self.domain_checker.check_fhir_alignment(columns)
+        elif domain == "Finance":
+            compliance_check = self.domain_checker.check_basel_compliance(columns)
+        else:
+            compliance_check = {"is_aligned": True, "standard": "General"}
+
+        # ── Chain-of-Thought reasoning trace ───────────────────────────────────
+        cold = state.get("cold_start", False)
+        trace = (
+            f"{'[COLD-START] ' if cold else ''}"
+            f"Analyzed {len(columns)} fields for {domain} synthesis (Iter {iteration}). "
+        )
+        if compliance_check.get("is_aligned") or compliance_check.get("is_compliant"):
+            trace += f"Validated against {compliance_check.get('standard')}. "
+        else:
+            trace += "WARNING: Domain standards alignment issues detected. "
+        if feedback and iteration > 0:
+            trace += f"[Refined by Feedback: {feedback}]"
+
+        # ── Schema skeleton ────────────────────────────────────────────────────
+        schema_skeleton = {
+            "fields":             columns,
+            "domain_constraints": compliance_check,
+            "synthesis_strategy": (
+                "Cold-Start Prior + GAN Augmentation" if cold
+                else ("Iterative-Adversarial" if domain != "Finance" else "Temporal-GAN")
+            ),
+            "cold_start":         cold,
+            "seed_rows":          len(df),
+        }
+
+        state["reasoning_trace"]  = trace
+        state["compliance_check"] = compliance_check
+        state["schema_skeleton"]  = schema_skeleton
+
+        return state

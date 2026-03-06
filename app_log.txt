@@ -1,0 +1,14 @@
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8502
+  Network URL: http://172.21.156.233:8502
+
+  For better performance, install the Watchdog module:
+
+  $ xcode-select --install
+  $ pip install watchdog
+            
+2026-03-06 02:21:23.454 Thread 'Thread-1 (_thread_target)': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-03-06 02:21:23.456 Thread 'Thread-1 (_thread_target)': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-03-06 02:21:23.456 Thread 'Thread-1 (_thread_target)': missing ScriptRunContext! This warning can be ignored when running in bare mode.

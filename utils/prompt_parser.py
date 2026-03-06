@@ -14,6 +14,8 @@ class GenerationConfig(BaseModel):
     model: str = Field(default="auto", description="The generative model (auto, timegan, vae, diffusion)")
     columns: List[str] = Field(default=[], description="The list of column names or features to include")
     goal: str = Field(description="A concise summary of the synthesis goal")
+    output_format: str = Field(default="CSV", description="Output format: CSV, JSON, or Parquet")
+    seed: int = Field(default=42, description="Random seed for reproducibility")
 
     @validator("domain")
     def validate_domain(cls, v):

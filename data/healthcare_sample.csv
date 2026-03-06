@@ -1,6 +1,501 @@
-patient_id,age,diagnosis,treatment_cost
-1001,45,Hypertension,150.00
-1002,32,Type 2 Diabetes,200.50
-1003,58,Coronary Artery Disease,3500.00
-1004,24,Asthma,85.20
-1005,71,Osteoarthritis,420.00
+patient_id,age,gender,bmi,systolic_bp,smoker,diagnosis,num_medications,treatment_cost,readmitted
+1001,74,Male,30.7,136,0,Heart Failure,3,11556.43,0
+1002,53,Male,24.6,111,0,Type 2 Diabetes,4,524.6,0
+1003,40,Male,28.6,108,1,Hypothyroidism,4,84.92,0
+1004,31,Female,24.5,114,0,Depression,2,423.36,0
+1005,66,Female,21.2,131,0,Atrial Fibrillation,7,2035.12,0
+1006,82,Male,22.5,99,1,Heart Failure,3,3407.05,1
+1007,59,Male,24.1,137,1,Hypertension,3,396.07,0
+1008,80,Male,29.2,129,0,Heart Failure,5,4042.82,0
+1009,52,Female,35.0,122,0,Atrial Fibrillation,1,4043.14,0
+1010,61,Male,36.5,124,0,Stroke,6,12130.55,0
+1011,55,Female,25.4,101,0,Osteoarthritis,3,710.88,0
+1012,42,Male,27.5,115,0,Rheumatoid Arthritis,3,2665.75,0
+1013,56,Male,17.9,117,0,COPD,2,802.85,0
+1014,81,Female,24.6,112,1,Osteoarthritis,3,1117.44,1
+1015,49,Male,30.4,144,1,COPD,2,1411.69,0
+1016,45,Female,19.7,118,0,Asthma,4,63.98,0
+1017,67,Female,25.7,124,1,Depression,3,469.88,0
+1018,29,Male,20.3,132,0,Hypothyroidism,5,185.06,0
+1019,79,Female,28.4,103,0,Chronic Kidney Disease,3,4228.93,1
+1020,51,Female,29.6,95,0,COPD,5,1553.5,0
+1021,79,Male,31.8,122,0,Osteoarthritis,2,880.59,1
+1022,78,Female,29.1,124,0,Atrial Fibrillation,3,2118.24,0
+1023,55,Female,28.6,103,0,Heart Failure,4,5852.3,0
+1024,55,Male,32.9,130,0,Type 2 Diabetes,11,483.35,0
+1025,58,Male,25.1,118,0,Hypothyroidism,2,64.1,0
+1026,51,Female,23.0,113,1,Asthma,2,257.42,0
+1027,49,Female,38.2,125,1,Obesity,4,471.95,0
+1028,80,Male,23.6,137,0,Heart Failure,4,3228.16,1
+1029,59,Male,19.9,112,1,Heart Failure,0,8505.49,0
+1030,79,Male,26.3,140,0,Osteoarthritis,3,1069.91,1
+1031,83,Female,43.4,119,0,Osteoarthritis,7,534.8,1
+1032,66,Male,30.0,130,0,Rheumatoid Arthritis,2,2102.26,0
+1033,64,Female,21.7,136,0,Type 2 Diabetes,4,301.45,0
+1034,69,Female,23.4,111,1,COPD,7,1685.57,0
+1035,40,Male,34.0,118,1,Obesity,1,628.18,0
+1036,36,Female,29.1,116,0,Depression,3,136.51,0
+1037,50,Male,30.6,125,0,Rheumatoid Arthritis,2,2405.7,0
+1038,83,Male,30.6,134,0,Heart Failure,3,6158.24,0
+1039,68,Female,28.9,115,0,Osteoarthritis,4,823.17,0
+1040,83,Female,24.6,100,0,Coronary Artery Disease,6,4606.71,0
+1041,72,Male,18.0,137,1,Hypertension,3,230.9,0
+1042,48,Female,34.7,121,1,Hypertension,1,188.35,0
+1043,72,Male,29.8,105,0,COPD,2,937.06,0
+1044,71,Male,36.1,100,0,Stroke,2,9196.45,0
+1045,19,Male,28.2,130,0,Depression,7,133.1,0
+1046,68,Female,28.6,124,0,Hypertension,5,111.05,0
+1047,63,Female,23.1,109,1,Depression,1,200.58,0
+1048,80,Male,33.9,116,1,Heart Failure,4,7483.49,0
+1049,70,Female,28.5,118,0,Osteoarthritis,3,875.43,0
+1050,58,Female,28.6,107,1,Hypertension,3,373.14,0
+1051,83,Female,21.8,110,0,Osteoarthritis,5,858.73,1
+1052,20,Female,29.8,118,0,Depression,3,449.73,0
+1053,40,Male,31.4,114,0,Chronic Kidney Disease,1,3904.91,0
+1054,69,Female,28.4,118,1,Chronic Kidney Disease,4,2206.4,0
+1055,36,Male,29.9,125,1,Rheumatoid Arthritis,2,2249.2,0
+1056,59,Male,33.4,120,0,Heart Failure,3,4640.55,1
+1057,76,Female,29.5,137,0,Type 2 Diabetes,4,412.89,0
+1058,76,Female,26.5,90,0,Chronic Kidney Disease,3,5701.61,0
+1059,73,Female,29.5,116,1,Osteoarthritis,2,400.84,1
+1060,65,Male,32.2,108,0,Stroke,3,13574.19,1
+1061,76,Female,26.5,123,0,Chronic Kidney Disease,3,3777.47,1
+1062,10,Female,39.4,110,0,Asthma,6,93.32,0
+1063,74,Female,30.2,138,1,Hypertension,2,316.48,1
+1064,62,Female,25.0,140,1,Depression,5,335.32,0
+1065,43,Male,28.7,99,0,Type 2 Diabetes,5,179.98,0
+1066,65,Female,31.6,130,0,Rheumatoid Arthritis,4,2994.46,0
+1067,48,Female,38.8,106,0,Obesity,3,365.18,0
+1068,80,Male,23.6,103,1,Coronary Artery Disease,4,5256.35,0
+1069,67,Female,28.0,126,1,Atrial Fibrillation,4,3445.82,1
+1070,66,Male,25.9,112,0,COPD,3,1857.1,0
+1071,75,Female,23.5,125,0,Stroke,4,10689.59,0
+1072,46,Male,29.9,99,0,Rheumatoid Arthritis,3,2008.96,0
+1073,50,Female,27.3,123,1,Type 2 Diabetes,2,381.83,0
+1074,47,Male,28.5,116,0,Obesity,1,624.97,0
+1075,63,Female,26.2,136,0,COPD,3,505.13,0
+1076,56,Female,30.1,114,1,Obesity,6,627.27,0
+1077,83,Female,31.6,95,0,Stroke,8,13925.73,0
+1078,36,Male,30.9,123,1,Type 2 Diabetes,6,434.96,0
+1079,66,Male,33.4,109,1,Heart Failure,3,10475.89,0
+1080,52,Male,25.7,117,0,Rheumatoid Arthritis,2,2519.65,0
+1081,33,Female,29.0,125,1,Rheumatoid Arthritis,3,917.46,0
+1082,74,Male,24.7,121,0,Osteoarthritis,4,747.72,0
+1083,60,Male,25.4,147,1,Hypertension,1,221.31,0
+1084,70,Female,26.4,132,0,Coronary Artery Disease,4,2409.5,0
+1085,77,Female,21.3,119,1,COPD,4,831.86,0
+1086,59,Male,22.8,157,0,Hypertension,0,311.48,0
+1087,74,Female,26.0,110,1,Coronary Artery Disease,3,2031.52,1
+1088,52,Female,31.5,129,1,Coronary Artery Disease,3,5833.7,1
+1089,33,Female,28.9,102,0,Lupus,8,3760.79,1
+1090,48,Male,25.3,126,0,Hypertension,2,278.88,0
+1091,78,Female,24.2,130,1,Stroke,2,13092.37,1
+1092,62,Male,24.9,134,0,Atrial Fibrillation,6,3115.75,0
+1093,79,Male,30.8,137,1,Atrial Fibrillation,1,4411.29,0
+1094,21,Female,24.3,127,1,Asthma,5,289.54,0
+1095,64,Male,30.6,111,0,COPD,1,1740.52,0
+1096,20,Male,30.1,132,0,Lupus,4,3443.86,1
+1097,76,Male,34.4,126,1,Coronary Artery Disease,4,4780.28,0
+1098,41,Female,30.0,115,0,Type 2 Diabetes,1,165.94,0
+1099,34,Male,30.3,118,1,Rheumatoid Arthritis,3,717.08,0
+1100,47,Male,30.9,140,1,Coronary Artery Disease,10,4086.86,1
+1101,48,Female,25.6,107,0,Lupus,3,3442.61,0
+1102,76,Female,20.7,126,0,Atrial Fibrillation,5,4924.74,1
+1103,78,Female,30.1,110,0,Atrial Fibrillation,3,4155.23,0
+1104,79,Female,24.6,140,0,Type 2 Diabetes,1,595.57,1
+1105,69,Female,26.9,103,0,Stroke,6,17281.78,0
+1106,61,Male,18.3,111,0,Coronary Artery Disease,5,7779.42,0
+1107,70,Male,35.6,90,1,Hypothyroidism,4,80.56,0
+1108,63,Female,20.4,125,0,Atrial Fibrillation,3,3393.31,0
+1109,34,Male,26.6,109,0,Obesity,4,108.13,0
+1110,63,Male,28.3,107,0,Chronic Kidney Disease,4,2156.65,0
+1111,67,Female,20.6,116,0,Hypertension,2,364.76,0
+1112,73,Female,36.0,134,0,Hypothyroidism,8,192.73,1
+1113,57,Female,26.4,103,0,Stroke,4,5611.31,1
+1114,49,Male,36.1,123,1,Obesity,4,448.74,0
+1115,69,Female,33.0,116,0,Stroke,4,8865.24,1
+1116,53,Female,35.3,99,1,Depression,4,111.76,0
+1117,69,Male,31.2,109,0,Type 2 Diabetes,4,526.2,0
+1118,64,Male,36.6,128,0,Depression,3,337.17,0
+1119,74,Male,20.5,123,1,Hypertension,4,279.61,0
+1120,56,Male,25.8,113,0,COPD,6,1530.84,0
+1121,37,Female,27.7,109,0,Obesity,3,288.82,0
+1122,48,Female,25.1,100,0,Hypertension,4,306.46,0
+1123,66,Male,23.8,124,0,Heart Failure,3,7790.2,1
+1124,80,Female,28.4,120,0,Heart Failure,8,6368.67,1
+1125,63,Male,26.2,111,0,Stroke,7,17996.58,0
+1126,79,Female,34.2,137,0,Heart Failure,4,5955.43,0
+1127,58,Female,16.3,109,0,COPD,1,1391.18,0
+1128,42,Female,34.7,96,0,Lupus,4,2016.63,0
+1129,65,Male,31.3,121,1,Heart Failure,2,3068.07,0
+1130,21,Female,22.6,104,0,Obesity,4,279.74,0
+1131,47,Female,22.7,124,0,Depression,2,172.46,0
+1132,29,Male,28.6,134,0,Asthma,5,176.05,0
+1133,41,Female,21.3,109,0,Lupus,3,2115.29,0
+1134,19,Female,21.6,121,1,Asthma,1,168.42,0
+1135,64,Male,30.3,103,0,Osteoarthritis,1,507.22,0
+1136,51,Female,20.3,95,0,Coronary Artery Disease,2,6170.87,1
+1137,49,Male,22.0,109,0,Lupus,2,1677.31,0
+1138,61,Female,29.2,128,0,Rheumatoid Arthritis,6,1896.03,0
+1139,66,Female,22.5,125,0,COPD,6,1299.67,0
+1140,64,Male,31.8,127,0,Hypothyroidism,1,53.0,0
+1141,76,Female,30.0,124,0,COPD,2,604.34,0
+1142,38,Female,24.7,127,1,Rheumatoid Arthritis,4,1823.34,0
+1143,71,Female,38.5,126,0,Hypothyroidism,2,109.58,1
+1144,75,Female,25.3,111,0,Stroke,5,5343.41,1
+1145,52,Male,30.1,129,0,Atrial Fibrillation,2,4811.19,1
+1146,37,Female,25.6,125,0,Hypothyroidism,0,190.47,0
+1147,52,Female,24.1,117,0,Type 2 Diabetes,3,218.41,0
+1148,45,Male,29.0,110,0,Depression,6,221.31,0
+1149,59,Male,20.7,115,0,Stroke,3,18299.06,0
+1150,50,Male,31.8,108,0,Rheumatoid Arthritis,1,646.06,0
+1151,74,Female,22.5,117,0,Type 2 Diabetes,3,589.14,0
+1152,42,Male,20.6,98,1,Hypothyroidism,6,121.4,0
+1153,38,Male,15.3,116,0,Lupus,5,3440.42,0
+1154,67,Male,23.5,133,0,COPD,3,1546.12,0
+1155,54,Male,23.6,128,0,Osteoarthritis,5,894.27,0
+1156,70,Female,30.7,144,0,Hypertension,9,284.5,0
+1157,71,Male,24.5,102,0,Stroke,3,18921.25,0
+1158,70,Female,29.0,121,1,Atrial Fibrillation,6,2143.63,0
+1159,51,Female,29.0,97,0,Rheumatoid Arthritis,3,2407.65,0
+1160,78,Female,34.9,112,0,Heart Failure,1,6081.45,0
+1161,71,Female,21.5,115,1,Hypothyroidism,5,181.57,0
+1162,76,Female,33.5,110,0,Osteoarthritis,1,469.22,1
+1163,83,Female,33.1,127,0,Atrial Fibrillation,2,4034.71,1
+1164,41,Male,29.5,107,0,Lupus,0,1495.07,0
+1165,53,Female,20.3,98,0,Atrial Fibrillation,2,1725.28,0
+1166,13,Female,40.1,113,0,Asthma,3,72.67,0
+1167,54,Female,30.3,112,0,Hypothyroidism,2,197.3,0
+1168,74,Female,30.6,126,0,Stroke,3,5938.13,1
+1169,68,Female,29.0,101,0,Stroke,6,16208.29,1
+1170,22,Male,30.1,111,0,Lupus,1,3494.19,1
+1171,64,Male,32.0,127,0,Type 2 Diabetes,4,346.58,0
+1172,66,Female,23.1,108,0,Hypothyroidism,4,92.33,0
+1173,53,Male,28.0,104,0,Obesity,1,123.53,0
+1174,55,Male,31.0,119,0,COPD,5,1941.43,0
+1175,63,Male,24.5,137,0,COPD,4,893.92,0
+1176,76,Female,20.8,124,0,Heart Failure,2,7939.55,0
+1177,83,Female,27.6,109,0,Coronary Artery Disease,2,5272.59,0
+1178,35,Male,28.1,137,1,Asthma,6,139.25,0
+1179,20,Male,26.6,156,0,Depression,5,463.69,0
+1180,72,Female,22.8,104,0,COPD,4,1611.97,1
+1181,20,Female,27.6,102,0,Obesity,7,728.03,0
+1182,45,Female,22.2,117,0,Rheumatoid Arthritis,5,2972.2,0
+1183,34,Female,24.9,102,0,Asthma,2,257.51,0
+1184,68,Male,28.9,126,0,Hypothyroidism,4,198.21,0
+1185,50,Male,25.5,106,0,Lupus,7,1567.6,0
+1186,31,Female,29.8,105,0,Type 2 Diabetes,1,291.71,0
+1187,42,Female,24.5,115,0,Lupus,4,1489.7,0
+1188,72,Male,25.6,104,0,Stroke,2,14761.53,1
+1189,49,Female,25.5,117,0,Rheumatoid Arthritis,10,643.2,0
+1190,23,Female,19.0,124,0,Asthma,3,112.43,0
+1191,32,Female,21.5,102,0,Hypothyroidism,4,181.59,0
+1192,70,Male,22.9,120,1,Atrial Fibrillation,6,3085.78,0
+1193,69,Female,26.8,129,0,Stroke,4,14028.85,0
+1194,20,Female,28.1,124,0,Obesity,2,556.56,0
+1195,46,Male,26.5,133,0,Hypertension,4,281.22,0
+1196,47,Male,29.0,133,0,Hypertension,3,261.1,0
+1197,26,Female,31.7,111,1,Depression,1,426.67,0
+1198,48,Female,34.9,109,0,Rheumatoid Arthritis,5,1681.43,0
+1199,44,Male,31.6,124,1,Depression,4,100.84,0
+1200,82,Male,26.5,128,0,Stroke,6,13243.75,0
+1201,82,Female,34.2,127,1,Heart Failure,5,4546.64,0
+1202,70,Female,26.6,100,0,Osteoarthritis,3,1027.22,0
+1203,55,Female,34.5,114,1,Depression,4,415.59,0
+1204,53,Male,34.5,155,0,Depression,3,257.19,0
+1205,35,Male,24.7,115,0,Lupus,5,2838.09,0
+1206,58,Female,25.1,117,1,Asthma,1,93.73,0
+1207,66,Female,18.5,113,0,Chronic Kidney Disease,8,2220.11,0
+1208,49,Female,21.5,119,0,Obesity,4,338.27,0
+1209,65,Female,17.6,126,0,Coronary Artery Disease,6,4054.69,0
+1210,36,Male,25.2,116,0,Lupus,6,1444.2,0
+1211,68,Female,24.2,128,1,Rheumatoid Arthritis,4,899.57,0
+1212,77,Female,23.0,110,0,Stroke,8,10629.95,1
+1213,63,Male,22.4,108,0,Stroke,1,5892.07,0
+1214,70,Female,27.9,130,0,Heart Failure,6,9863.37,1
+1215,51,Female,26.9,113,0,COPD,0,403.71,0
+1216,49,Female,28.4,119,0,COPD,4,1715.08,0
+1217,64,Female,33.0,140,0,Rheumatoid Arthritis,3,1917.91,0
+1218,71,Female,21.7,117,0,Type 2 Diabetes,3,259.0,0
+1219,81,Female,33.3,121,0,Heart Failure,1,3198.24,0
+1220,39,Male,30.9,122,1,Depression,4,175.14,0
+1221,73,Female,22.5,120,0,Osteoarthritis,5,560.97,0
+1222,48,Female,31.0,129,1,Depression,4,175.62,0
+1223,35,Female,28.4,105,0,Hypothyroidism,6,174.01,0
+1224,80,Male,23.3,122,1,Heart Failure,2,8081.66,1
+1225,47,Female,38.7,113,0,Depression,4,207.59,0
+1226,84,Female,33.7,114,0,Atrial Fibrillation,5,2479.25,0
+1227,52,Female,23.2,131,0,COPD,4,1442.62,0
+1228,66,Female,18.8,119,0,Depression,2,144.6,0
+1229,23,Female,15.0,115,0,Asthma,0,159.27,0
+1230,54,Male,37.6,120,1,Rheumatoid Arthritis,4,2912.4,0
+1231,59,Male,26.2,102,0,Rheumatoid Arthritis,5,1482.56,0
+1232,24,Female,30.1,141,0,Obesity,2,715.48,0
+1233,47,Male,28.3,125,0,COPD,6,1536.22,0
+1234,46,Male,24.2,110,0,Hypothyroidism,5,104.85,0
+1235,35,Male,30.7,115,0,Hypothyroidism,3,88.99,0
+1236,69,Female,22.1,116,0,Osteoarthritis,3,867.83,0
+1237,61,Male,21.0,120,0,Chronic Kidney Disease,6,4923.84,0
+1238,30,Male,27.4,145,1,Hypothyroidism,4,66.33,0
+1239,57,Female,30.2,111,1,Chronic Kidney Disease,5,5915.3,1
+1240,84,Female,22.7,123,1,Stroke,1,14609.23,0
+1241,77,Male,30.6,102,0,Osteoarthritis,3,1133.57,0
+1242,57,Female,45.0,100,0,Coronary Artery Disease,1,2002.66,0
+1243,83,Male,33.5,110,0,Coronary Artery Disease,3,5462.74,1
+1244,32,Female,25.5,126,0,Asthma,4,181.43,0
+1245,31,Male,34.6,113,0,Hypothyroidism,2,184.11,0
+1246,83,Male,20.6,134,1,Coronary Artery Disease,3,2196.86,1
+1247,41,Male,27.8,133,0,Obesity,5,346.82,0
+1248,30,Male,22.1,104,0,Hypothyroidism,6,58.2,0
+1249,59,Male,31.8,124,0,Type 2 Diabetes,7,296.38,0
+1250,64,Female,29.9,111,1,Stroke,1,15639.81,1
+1251,56,Female,25.6,121,0,Asthma,9,231.46,0
+1252,68,Male,24.7,116,1,Hypertension,7,342.12,0
+1253,27,Female,25.5,121,0,Asthma,3,63.85,0
+1254,72,Female,27.5,110,1,Chronic Kidney Disease,4,5851.66,1
+1255,40,Female,31.0,113,1,Asthma,5,134.35,0
+1256,77,Male,22.5,104,0,COPD,3,1278.17,1
+1257,68,Female,28.3,117,0,Atrial Fibrillation,5,3710.16,1
+1258,25,Female,20.9,118,0,Depression,5,127.0,0
+1259,32,Male,18.8,116,0,Rheumatoid Arthritis,3,1092.8,0
+1260,59,Female,28.5,108,0,Chronic Kidney Disease,1,2837.81,0
+1261,50,Female,33.4,130,0,Coronary Artery Disease,4,3505.36,0
+1262,81,Female,26.4,121,0,Stroke,2,16048.03,0
+1263,43,Female,27.0,135,0,Hypertension,3,235.08,0
+1264,74,Female,28.8,121,0,Chronic Kidney Disease,5,5505.26,1
+1265,72,Male,22.6,95,0,Osteoarthritis,4,345.02,0
+1266,67,Male,29.2,90,1,Stroke,3,16801.54,1
+1267,71,Female,32.5,115,1,Heart Failure,4,10786.74,0
+1268,42,Female,24.0,118,1,Rheumatoid Arthritis,3,1322.51,0
+1269,72,Female,30.2,117,1,Hypertension,2,147.85,0
+1270,51,Male,16.8,124,1,Hypothyroidism,5,127.25,0
+1271,33,Female,26.4,107,0,Lupus,6,3604.22,1
+1272,64,Male,30.3,106,0,Obesity,1,571.55,0
+1273,66,Male,21.3,118,0,Type 2 Diabetes,3,479.58,0
+1274,60,Male,24.2,105,0,Hypothyroidism,5,67.76,0
+1275,67,Male,32.9,142,0,Hypertension,4,262.27,0
+1276,63,Male,27.6,134,1,Hypertension,9,231.73,0
+1277,33,Female,28.9,139,1,Lupus,5,831.93,0
+1278,70,Male,23.5,117,1,Type 2 Diabetes,2,547.15,0
+1279,45,Male,30.0,118,0,Chronic Kidney Disease,1,3252.32,1
+1280,74,Male,18.1,125,0,Stroke,1,19957.74,0
+1281,40,Female,30.8,104,0,Rheumatoid Arthritis,3,2176.15,0
+1282,53,Female,31.0,127,0,COPD,4,1333.94,0
+1283,45,Female,25.1,109,0,Depression,6,256.3,0
+1284,46,Male,27.6,128,0,COPD,6,1079.76,0
+1285,57,Male,20.4,131,0,Stroke,3,19086.03,1
+1286,69,Male,24.0,124,0,Stroke,2,16670.38,0
+1287,60,Female,29.7,131,1,Chronic Kidney Disease,4,5498.09,1
+1288,31,Female,30.5,128,1,Type 2 Diabetes,4,486.6,0
+1289,64,Female,22.1,104,1,Rheumatoid Arthritis,2,1970.79,0
+1290,72,Male,28.7,123,0,Hypothyroidism,1,96.83,1
+1291,70,Female,24.2,115,0,Osteoarthritis,4,662.1,0
+1292,63,Female,20.1,119,1,Rheumatoid Arthritis,4,1420.57,0
+1293,47,Male,28.5,125,0,Rheumatoid Arthritis,3,1469.84,0
+1294,58,Female,20.9,144,0,Heart Failure,1,6724.45,0
+1295,66,Female,30.4,121,1,Stroke,4,11823.09,1
+1296,64,Male,25.6,120,1,Hypothyroidism,6,139.11,0
+1297,52,Male,28.9,118,1,Rheumatoid Arthritis,1,1287.65,0
+1298,75,Female,29.2,121,0,Heart Failure,1,11778.09,0
+1299,49,Female,33.7,90,0,Type 2 Diabetes,1,174.85,0
+1300,62,Male,21.2,125,1,Heart Failure,4,4865.46,1
+1301,67,Female,17.9,116,1,Type 2 Diabetes,3,539.1,0
+1302,67,Female,18.1,113,0,Coronary Artery Disease,7,2493.63,0
+1303,77,Female,21.6,112,0,Stroke,5,17601.62,0
+1304,34,Female,27.7,134,0,Asthma,6,183.32,0
+1305,72,Male,27.3,132,1,COPD,5,664.48,1
+1306,41,Male,29.5,123,0,Rheumatoid Arthritis,3,1936.28,0
+1307,43,Female,29.0,122,1,Chronic Kidney Disease,2,1502.94,0
+1308,58,Male,22.8,121,1,Hypertension,3,245.84,0
+1309,47,Male,29.3,120,0,Type 2 Diabetes,3,380.81,0
+1310,74,Female,25.6,154,0,Hypertension,7,168.02,0
+1311,57,Female,28.6,123,0,Hypothyroidism,2,166.01,0
+1312,66,Female,28.5,132,0,Hypertension,3,266.94,0
+1313,69,Male,22.5,115,0,Hypertension,4,225.57,0
+1314,76,Male,23.1,129,1,Chronic Kidney Disease,0,5481.85,1
+1315,53,Male,24.5,115,0,Depression,4,349.08,0
+1316,47,Female,22.0,121,0,Asthma,4,74.83,0
+1317,54,Female,24.3,113,1,COPD,5,683.51,0
+1318,47,Male,24.4,114,0,Hypothyroidism,6,94.26,0
+1319,32,Female,29.6,110,0,Obesity,2,764.93,0
+1320,71,Female,22.9,120,0,Hypothyroidism,4,52.28,0
+1321,78,Female,28.5,121,0,Osteoarthritis,6,503.65,0
+1322,58,Male,24.0,127,0,Atrial Fibrillation,0,1127.11,0
+1323,56,Female,20.4,137,0,Hypertension,6,167.96,0
+1324,30,Female,19.9,90,0,Lupus,5,1071.0,0
+1325,50,Female,26.8,108,1,Coronary Artery Disease,4,6075.19,1
+1326,62,Female,27.9,98,0,Atrial Fibrillation,5,1895.93,0
+1327,61,Female,27.2,124,0,COPD,3,1838.82,0
+1328,60,Male,27.0,111,1,COPD,5,1723.68,0
+1329,51,Female,28.6,126,0,COPD,6,1894.89,0
+1330,79,Male,26.3,131,1,Osteoarthritis,4,786.27,0
+1331,47,Male,32.5,131,0,COPD,4,1725.58,0
+1332,50,Male,26.6,101,0,Chronic Kidney Disease,1,3544.81,1
+1333,72,Male,25.9,113,1,Osteoarthritis,2,675.47,0
+1334,42,Male,21.8,122,0,Depression,3,364.69,0
+1335,41,Female,26.7,117,0,Type 2 Diabetes,5,166.17,0
+1336,48,Female,27.8,109,1,Asthma,2,61.5,0
+1337,36,Male,25.2,111,0,Hypothyroidism,1,111.57,0
+1338,37,Male,20.3,128,0,Asthma,7,72.13,0
+1339,76,Male,35.9,122,0,Osteoarthritis,1,1119.72,1
+1340,68,Male,30.1,104,1,Atrial Fibrillation,3,3788.65,0
+1341,69,Male,32.4,124,0,Stroke,4,17390.97,1
+1342,48,Female,32.0,139,0,Lupus,4,3962.95,0
+1343,80,Female,28.6,133,0,Atrial Fibrillation,2,3756.35,1
+1344,81,Female,23.6,139,0,Hypertension,4,163.1,1
+1345,36,Male,22.5,125,0,Hypertension,5,329.75,0
+1346,39,Female,24.2,122,0,Obesity,3,185.41,0
+1347,49,Female,27.2,132,0,Lupus,7,3381.62,0
+1348,59,Male,29.4,121,1,Osteoarthritis,9,792.03,0
+1349,33,Female,33.4,135,0,Obesity,4,252.52,0
+1350,66,Male,27.1,90,1,Stroke,4,18863.81,0
+1351,43,Female,28.1,129,0,Hypothyroidism,4,72.23,0
+1352,47,Male,23.5,115,1,Hypothyroidism,3,62.16,0
+1353,58,Male,35.8,127,0,Type 2 Diabetes,3,536.8,0
+1354,58,Female,30.9,131,0,Heart Failure,3,6833.44,0
+1355,43,Female,32.1,108,1,Lupus,3,1753.84,0
+1356,44,Male,18.7,120,0,Lupus,4,3784.14,1
+1357,65,Female,24.0,131,0,Heart Failure,9,11169.62,0
+1358,40,Male,31.4,96,1,Depression,2,416.01,0
+1359,74,Male,29.0,117,0,Coronary Artery Disease,4,4995.82,1
+1360,52,Female,24.7,120,0,Hypertension,3,159.29,0
+1361,26,Male,22.5,126,0,Asthma,1,208.79,0
+1362,63,Female,37.4,122,0,COPD,4,872.75,0
+1363,66,Female,25.9,94,0,Osteoarthritis,4,771.3,0
+1364,61,Female,22.6,98,1,Stroke,3,15177.37,1
+1365,54,Female,19.8,131,0,Lupus,3,3314.96,0
+1366,42,Male,26.3,127,0,Hypothyroidism,3,139.92,0
+1367,68,Female,33.8,132,1,Hypertension,5,339.94,0
+1368,71,Female,34.5,124,0,Heart Failure,2,8144.47,0
+1369,54,Male,24.8,116,0,Coronary Artery Disease,3,3213.76,0
+1370,52,Female,36.0,140,0,Osteoarthritis,2,364.04,0
+1371,73,Male,38.0,125,1,Chronic Kidney Disease,2,2333.75,0
+1372,60,Male,22.9,135,0,Hypertension,3,327.03,0
+1373,42,Male,33.2,109,0,Hypothyroidism,1,150.86,0
+1374,51,Female,27.8,123,0,Depression,2,116.57,0
+1375,76,Male,22.8,120,1,Type 2 Diabetes,7,243.5,0
+1376,77,Male,30.0,123,0,Hypertension,5,393.47,1
+1377,64,Female,32.7,136,0,Type 2 Diabetes,3,356.84,0
+1378,77,Male,22.3,115,0,Heart Failure,5,8146.1,0
+1379,72,Male,24.8,126,0,Osteoarthritis,4,583.51,0
+1380,30,Male,30.4,114,0,Obesity,2,408.38,0
+1381,67,Male,24.1,114,0,Rheumatoid Arthritis,1,819.14,0
+1382,58,Male,27.3,130,1,Hypertension,8,256.41,0
+1383,45,Female,23.4,105,0,Type 2 Diabetes,2,239.39,0
+1384,64,Male,30.5,137,0,Heart Failure,4,9954.04,0
+1385,57,Female,32.4,133,1,Stroke,1,13361.07,1
+1386,48,Male,20.5,130,0,Obesity,0,193.05,0
+1387,62,Female,18.4,105,0,Osteoarthritis,5,488.51,0
+1388,31,Male,25.3,107,0,Obesity,5,361.76,0
+1389,49,Male,25.0,100,0,Rheumatoid Arthritis,6,2388.52,0
+1390,75,Female,25.0,115,0,Chronic Kidney Disease,4,3195.04,1
+1391,39,Female,29.7,108,0,Rheumatoid Arthritis,4,2435.16,0
+1392,57,Female,26.9,122,1,Type 2 Diabetes,4,511.08,0
+1393,63,Female,21.8,139,0,Hypertension,2,322.59,0
+1394,46,Female,29.2,113,0,Chronic Kidney Disease,7,3225.29,1
+1395,70,Female,31.9,114,0,Stroke,2,15455.36,1
+1396,72,Female,22.9,107,0,Stroke,3,14470.64,0
+1397,68,Female,20.7,114,0,Hypertension,5,210.74,0
+1398,71,Male,19.7,150,1,Hypertension,4,298.94,0
+1399,33,Female,32.0,97,0,Type 2 Diabetes,2,380.79,0
+1400,53,Male,23.9,124,0,COPD,4,1069.91,0
+1401,56,Male,34.8,127,0,Type 2 Diabetes,2,318.67,0
+1402,41,Male,33.8,112,0,Lupus,4,924.67,0
+1403,51,Female,27.4,121,1,Lupus,4,2274.35,0
+1404,75,Male,30.8,111,1,Osteoarthritis,0,611.02,0
+1405,83,Male,18.6,135,0,Hypertension,4,170.07,1
+1406,46,Female,32.0,123,0,Type 2 Diabetes,2,291.58,0
+1407,30,Female,23.5,119,0,Type 2 Diabetes,3,519.56,0
+1408,25,Female,25.8,118,1,Hypothyroidism,8,175.46,0
+1409,71,Female,22.4,151,0,Hypertension,3,348.95,1
+1410,24,Male,31.5,123,0,Obesity,5,282.64,0
+1411,59,Female,23.6,143,0,Coronary Artery Disease,10,5771.4,0
+1412,44,Female,31.4,153,0,Hypertension,4,390.32,0
+1413,19,Male,15.0,124,0,Lupus,3,2010.32,0
+1414,67,Female,20.4,120,0,Rheumatoid Arthritis,4,1085.16,0
+1415,84,Female,30.8,120,1,Hypertension,3,389.75,1
+1416,46,Female,23.8,132,0,Type 2 Diabetes,2,317.44,0
+1417,81,Female,31.2,108,0,Stroke,4,11975.55,1
+1418,78,Male,24.8,142,1,Hypertension,8,328.65,0
+1419,25,Male,34.1,101,0,Lupus,3,3196.68,0
+1420,57,Female,23.1,90,0,Stroke,3,19509.07,0
+1421,49,Female,32.3,123,0,Asthma,8,69.42,0
+1422,31,Male,29.3,131,0,Asthma,4,85.96,0
+1423,81,Female,31.4,111,1,Heart Failure,1,9123.46,0
+1424,38,Female,30.0,128,0,Lupus,3,3193.65,0
+1425,70,Female,28.1,115,0,Type 2 Diabetes,1,519.74,0
+1426,71,Male,28.4,128,0,Type 2 Diabetes,3,470.3,0
+1427,33,Female,24.1,112,1,Hypothyroidism,5,111.18,0
+1428,60,Female,19.9,108,1,Chronic Kidney Disease,3,2115.8,0
+1429,56,Female,26.6,112,0,Chronic Kidney Disease,2,4305.84,0
+1430,57,Male,25.1,125,0,Type 2 Diabetes,2,197.77,0
+1431,52,Male,33.4,115,0,Rheumatoid Arthritis,1,687.51,0
+1432,47,Male,24.1,114,0,Type 2 Diabetes,8,299.59,0
+1433,67,Male,22.7,115,0,Coronary Artery Disease,1,3591.25,0
+1434,70,Female,28.8,113,0,Coronary Artery Disease,3,5091.83,0
+1435,41,Female,25.2,122,0,Lupus,4,1906.75,0
+1436,62,Male,32.0,100,0,Heart Failure,5,6621.36,0
+1437,62,Female,26.8,122,1,Heart Failure,2,4854.05,0
+1438,62,Female,36.0,115,0,Hypertension,5,251.61,0
+1439,43,Female,30.3,102,1,Chronic Kidney Disease,1,4328.26,0
+1440,36,Male,22.5,97,0,Obesity,6,269.58,0
+1441,58,Female,23.5,106,0,Obesity,3,193.34,0
+1442,56,Male,36.5,127,0,Rheumatoid Arthritis,2,2677.37,0
+1443,16,Female,27.7,135,0,Asthma,5,121.54,0
+1444,33,Female,26.4,95,0,Rheumatoid Arthritis,4,2853.3,0
+1445,40,Male,24.8,112,1,Asthma,5,269.76,0
+1446,69,Male,19.8,116,0,Atrial Fibrillation,4,4120.19,1
+1447,27,Male,28.9,111,0,Lupus,1,3070.95,1
+1448,48,Male,27.1,126,0,Depression,5,265.76,0
+1449,60,Female,27.2,135,0,Stroke,2,18632.98,1
+1450,70,Male,22.6,106,1,Osteoarthritis,2,821.85,0
+1451,69,Male,19.0,118,0,Coronary Artery Disease,6,4637.38,1
+1452,51,Female,30.4,119,0,Coronary Artery Disease,6,5421.09,1
+1453,48,Female,27.5,132,0,COPD,7,1963.93,0
+1454,35,Female,34.7,125,1,Hypertension,4,204.09,0
+1455,44,Female,15.0,137,0,Hypertension,5,178.25,0
+1456,58,Female,16.2,107,0,Heart Failure,7,3832.05,0
+1457,70,Male,26.8,111,0,Chronic Kidney Disease,3,2730.64,0
+1458,63,Female,38.0,99,0,Hypothyroidism,3,111.67,0
+1459,56,Male,35.0,125,1,Heart Failure,1,3576.85,0
+1460,47,Female,24.7,104,0,Coronary Artery Disease,2,2802.67,0
+1461,58,Male,22.6,126,0,Chronic Kidney Disease,4,3350.15,0
+1462,78,Female,30.0,122,0,Stroke,2,12588.89,1
+1463,30,Female,33.6,105,0,Depression,6,263.67,0
+1464,61,Male,16.2,106,0,Osteoarthritis,0,778.33,0
+1465,49,Female,23.5,124,0,COPD,1,1229.25,0
+1466,24,Male,25.3,119,0,Obesity,2,307.51,0
+1467,81,Female,30.5,114,0,Heart Failure,1,8589.96,1
+1468,56,Male,31.1,123,1,Hypertension,3,342.03,0
+1469,42,Female,28.5,107,0,Hypothyroidism,4,83.05,0
+1470,33,Male,32.5,99,0,Asthma,5,214.35,0
+1471,73,Male,31.7,101,1,Stroke,3,16038.81,1
+1472,62,Male,34.2,133,0,Rheumatoid Arthritis,3,2607.31,0
+1473,46,Male,25.6,140,0,Coronary Artery Disease,5,6958.34,1
+1474,37,Female,34.3,116,0,Hypertension,2,243.36,0
+1475,45,Female,32.5,121,0,Rheumatoid Arthritis,2,695.51,0
+1476,65,Female,33.4,114,0,Chronic Kidney Disease,2,2600.95,0
+1477,65,Female,17.8,108,0,Coronary Artery Disease,3,6560.21,0
+1478,46,Female,28.0,110,0,Chronic Kidney Disease,3,4145.09,1
+1479,57,Male,31.7,131,0,Rheumatoid Arthritis,1,1993.81,0
+1480,26,Male,28.0,122,0,Depression,6,443.44,0
+1481,69,Male,32.0,101,1,Osteoarthritis,1,1065.77,0
+1482,57,Female,24.8,110,1,Stroke,2,15683.3,0
+1483,60,Female,29.8,114,0,COPD,5,1605.95,0
+1484,68,Female,19.2,114,0,Type 2 Diabetes,3,557.76,0
+1485,59,Male,28.0,101,0,Asthma,5,224.15,0
+1486,66,Female,31.1,123,0,Coronary Artery Disease,2,4714.2,0
+1487,50,Male,29.6,90,0,Type 2 Diabetes,2,248.24,0
+1488,82,Female,22.0,127,0,Atrial Fibrillation,6,4942.4,1
+1489,49,Female,28.2,116,0,Lupus,1,3810.4,1
+1490,67,Male,31.9,106,0,Obesity,3,604.74,0
+1491,52,Male,23.0,120,1,Atrial Fibrillation,4,2620.79,0
+1492,82,Female,27.5,128,0,Atrial Fibrillation,4,4861.79,0
+1493,70,Female,26.2,110,0,Coronary Artery Disease,4,4269.89,0
+1494,61,Female,31.1,119,1,Depression,4,148.15,0
+1495,79,Female,30.2,91,0,Osteoarthritis,7,363.63,0
+1496,71,Male,17.4,110,0,Osteoarthritis,5,549.43,0
+1497,67,Female,22.6,141,0,Coronary Artery Disease,4,7672.97,1
+1498,80,Male,23.5,94,0,Heart Failure,2,4600.96,0
+1499,77,Male,27.8,152,0,Hypertension,3,310.34,0
+1500,25,Male,30.9,111,0,Depression,6,347.5,0

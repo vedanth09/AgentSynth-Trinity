@@ -29,8 +29,10 @@ class AgentState(BaseModel):
     iteration: int = 0
     epsilon_input: Optional[float] = 1.0
     num_rows: Optional[int] = 100
-    selected_model_type: str = "auto" # auto, timegan, vae, diffusion
-    
+    selected_model_type: str = "auto"  # auto, timegan, vae, diffusion
+    output_format: str = "CSV"         # FIX: added so app.py can pass it in
+    seed: int = 42                     # FIX: added so app.py can pass it in
+
     # Outputs
     recommended_model: Optional[str] = None
     reasoning_trace: Optional[str] = None
@@ -46,72 +48,121 @@ class AgentState(BaseModel):
     judge_feedback: Optional[str] = None
     trace: List[str] = []
 
-# --- Initialize Global Components ---
-reasoning_generator = ReasoningGenerator()
-statistical_critic = StatisticalCritic()
-privacy_guard = PrivacyGuard()
-trinity_judge = TrinityJudge()
-meta_agent = MetaAgent()
-audit_logger = AuditLogger()
-reporter = TrinityReporter()
+
+# --- FIX: Agent instances are created per-request (factory functions) to avoid
+#     shared mutable state across concurrent Streamlit sessions. ---
+def _make_agents():
+    return (
+        ReasoningGenerator(),
+        StatisticalCritic(),
+        PrivacyGuard(),
+        TrinityJudge(),
+        MetaAgent(),
+        AuditLogger(),
+        TrinityReporter(),
+    )
+
 
 # --- Async Node Functions ---
-async def meta_agent_node(state: AgentState) -> Dict:
-    state.trace.append("Meta-Agent: Consulting historical knowledge base...")
-    return meta_agent.process(state.model_dump())
+# FIX: Nodes now receive a plain dict (as LangGraph passes after serialisation)
+#      and return a plain dict so the shape is consistent across all nodes.
 
-async def reasoning_node(state: AgentState) -> Dict:
-    state.trace.append("Reasoning Generator: Analyzing domain semantics...")
-    return await reasoning_generator.process(state.model_dump())
+async def meta_agent_node(state) -> dict:
+    state = _to_dict(state)
+    meta_agent = _make_agents()[4]
+    state["trace"] = state.get("trace", []) + ["Meta-Agent: Consulting historical knowledge base..."]
+    return meta_agent.process(state)
 
-async def critic_node(state: AgentState) -> Dict:
-    state.trace.append("Statistical Critic: Running experimental pilot and ensembling...")
-    return await statistical_critic.process(state.model_dump())
+async def reasoning_node(state) -> dict:
+    state = _to_dict(state)
+    reasoning_generator = _make_agents()[0]
+    state["trace"] = state.get("trace", []) + ["Reasoning Generator: Analyzing domain semantics..."]
+    return await reasoning_generator.process(state)
 
-async def privacy_node(state: AgentState) -> Dict:
-    state.trace.append("Privacy Guard: Applying (ε, δ)-DP constraints with RDP-accounting...")
-    return await privacy_guard.process(state.model_dump())
+async def critic_node(state) -> dict:
+    state = _to_dict(state)
+    statistical_critic = _make_agents()[1]
+    state["trace"] = state.get("trace", []) + ["Statistical Critic: Running experimental pilot and ensembling..."]
+    return await statistical_critic.process(state)
 
-async def judge_node(state: AgentState) -> Dict:
-    state.trace.append("Trinity Judge: Commencing multi-dimensional evaluation (Fidelity, Utility, Privacy)...")
-    return await trinity_judge.evaluate(state.model_dump())
+async def privacy_node(state) -> dict:
+    state = _to_dict(state)
+    privacy_guard = _make_agents()[2]
+    state["trace"] = state.get("trace", []) + ["Privacy Guard: Applying (ε, δ)-DP constraints with RDP-accounting..."]
+    return await privacy_guard.process(state)
 
-async def logging_node(state: AgentState) -> Dict:
-    state.trace.append("Orchestrator: Flow Approved. Finalizing audit lineage.")
+async def judge_node(state) -> dict:
+    state = _to_dict(state)
+    trinity_judge = _make_agents()[3]
+    state["trace"] = state.get("trace", []) + ["Trinity Judge: Commencing multi-dimensional evaluation (Fidelity, Utility, Privacy)..."]
+    return await trinity_judge.evaluate(state)
+
+async def logging_node(state) -> dict:
+    state = _to_dict(state)
+    audit_logger = _make_agents()[5]
+    state["trace"] = state.get("trace", []) + ["Orchestrator: Flow Approved. Finalizing audit lineage."]
     timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     audit_logger.log_event(
-        timestamp=timestamp, agent_name="Trinity_v2_Pydantic", 
-        domain=state.domain, goal=state.goal,
-        compliance_check=state.compliance_check,
-        logic_skeleton=state.schema_skeleton,
-        privacy_proof=state.privacy_proof
+        timestamp=timestamp,
+        agent_name="Trinity_v2_Pydantic",
+        domain=state.get("domain"),
+        goal=state.get("goal"),
+        compliance_check=state.get("compliance_check"),
+        logic_skeleton=state.get("schema_skeleton"),
+        privacy_proof=state.get("privacy_proof"),
     )
-    return state.model_dump()
+    return state
+
+
+# --- Conditional routing ---
+# FIX: `should_continue` now accepts a plain dict (what LangGraph actually passes
+#      after node execution) instead of an AgentState instance.
+def should_continue(state) -> str:
+    state = _to_dict(state)
+    judge_decision = state.get("judge_decision")
+    iteration = state.get("iteration", 0)
+    judge_feedback = state.get("judge_feedback", "") or ""
+
+    if judge_decision == "Approve" or iteration >= 3:
+        return "logging"
+    return "critic" if "Fidelity" in judge_feedback else "reasoning"
+
+
+# --- Helper: normalise whatever LangGraph passes into a plain dict ---
+def _to_dict(state) -> dict:
+    if isinstance(state, dict):
+        return state
+    if hasattr(state, "model_dump"):
+        return state.model_dump()
+    return dict(state)
+
 
 # --- Graph Assembly ---
 def build_graph():
-    workflow = StateGraph(AgentState)
+    # Use dict as the state schema so LangGraph always passes plain dicts to
+    # nodes — avoids the AgentState.get() AttributeError seen with Pydantic schemas.
+    workflow = StateGraph(dict)
     workflow.add_node("meta_agent", meta_agent_node)
     workflow.add_node("reasoning", reasoning_node)
     workflow.add_node("critic", critic_node)
     workflow.add_node("privacy", privacy_node)
     workflow.add_node("judge", judge_node)
     workflow.add_node("logging", logging_node)
-    
+
     workflow.set_entry_point("meta_agent")
     workflow.add_edge("meta_agent", "reasoning")
     workflow.add_edge("reasoning", "critic")
     workflow.add_edge("critic", "privacy")
     workflow.add_edge("privacy", "judge")
-    
-    def should_continue(state: AgentState):
-        if state.judge_decision == "Approve" or state.iteration >= 3:
-            return "logging"
-        return "critic" if "Fidelity" in (state.judge_feedback or "") else "reasoning"
 
-    workflow.add_conditional_edges("judge", should_continue, {"critic": "critic", "reasoning": "reasoning", "logging": "logging"})
+    workflow.add_conditional_edges(
+        "judge",
+        should_continue,
+        {"critic": "critic", "reasoning": "reasoning", "logging": "logging"},
+    )
     workflow.add_edge("logging", END)
     return workflow.compile()
+
 
 async def run_trinity_pipeline(initial_state: AgentState):
     """
@@ -121,12 +172,15 @@ async def run_trinity_pipeline(initial_state: AgentState):
     async for event in app.astream(initial_state.model_dump()):
         yield event
 
+
 if __name__ == "__main__":
     # CLI fallback for testing
     import pandas as pd
     data = pd.DataFrame({"age": [25, 30], "income": [50000, 60000]})
     config = AgentState(raw_data=data, domain="Healthcare")
+
     async def test_run():
         async for step in run_trinity_pipeline(config):
             print(f"Step: {list(step.keys())[0]}")
+
     asyncio.run(test_run())

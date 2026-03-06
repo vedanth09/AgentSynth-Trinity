@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 # SDV Imports
-from sdv.single_table import TVAESynthesizer, GaussianCopulaSynthesizer
+from sdv.single_table import TVAESynthesizer, GaussianCopulaSynthesizer, CTGANSynthesizer
 from sdv.metadata import SingleTableMetadata
 
 # Internal Imports
@@ -13,127 +13,230 @@ from utils.metrics import calculate_average_wasserstein_distance
 from models.timegan_wrapper import ConditionalTimeGANWrapper
 from models.ddpm_tabular import DDPMTabular
 
+
 class ModelLibrary:
     """
     Library of generative models managed by the Statistical Critic.
+
+    Model Overview:
+    ---------------
+    CTGAN  (GAN)         - Conditional Tabular GAN (Xu et al., 2019). Uses a generator
+                           and discriminator trained adversarially. The generator learns
+                           to produce synthetic rows that fool the discriminator into
+                           thinking they are real. Mode-specific normalisation handles
+                           the multi-modal distributions common in tabular data.
+                           → Best for: imbalanced columns, rare-event data (fraud, rare diseases).
+
+    TVAE   (VAE)         - Tabular Variational Autoencoder. Encodes real rows into a
+                           compressed latent space and samples from it to generate new rows.
+                           More training-stable than GANs (no adversarial instability).
+                           → Best for: mixed-type tabular data (numeric + categorical).
+
+    GaussianCopula       - Statistical model. Learns column marginals and their correlation
+                           structure separately, then samples jointly. Very fast and
+                           interpretable — good baseline.
+                           → Best for: low-dimensional, roughly Gaussian data.
+
+    DDPM   (Diffusion)   - Denoising Diffusion Probabilistic Model. Iteratively denoises
+                           Gaussian noise into realistic synthetic records (Ho et al., 2020).
+                           → Best for: high-dimensional healthcare records (architecture only
+                             in this version; full training loop is future work).
+
+    TimeGAN (GAN)        - Temporal GAN conditioned on market regimes (Yoon et al., 2019).
+                           → Best for: sequential financial time-series data (architecture
+                             only in this version; full training loop is future work).
     """
-    
+
+    # Minimum rows needed to train each SDV model reliably
+    MIN_ROWS = {"CTGAN": 50, "TVAE": 20, "GaussianCopula": 10}
+
     def __init__(self):
-        self.models = {
-            "TVAE": TVAESynthesizer,
-            "GaussianCopula": GaussianCopulaSynthesizer, 
+        self.sdv_models = {
+            "CTGAN":          CTGANSynthesizer,
+            "TVAE":           TVAESynthesizer,
+            "GaussianCopula": GaussianCopulaSynthesizer,
+        }
+        self.custom_models = {
             "TimeGAN": ConditionalTimeGANWrapper,
-            "DDPM": DDPMTabular
+            "DDPM":    DDPMTabular,
         }
 
-    def train_and_evaluate(self, 
-                          model_name: str, 
-                          real_data: pd.DataFrame, 
-                          metadata: SingleTableMetadata) -> tuple:
+    def train_and_evaluate(self,
+                           model_name: str,
+                           real_data: pd.DataFrame,
+                           metadata: SingleTableMetadata) -> tuple:
         """
-        Trains and returns (score, synthetic_samples).
+        Trains a synthesizer, generates a pilot sample, and returns
+        (wasserstein_score, synthetic_dataframe).  Lower score = better fidelity.
         """
         try:
             print(f"   > Piloting {model_name}...")
-            SynthesizerClass = self.models.get(model_name)
-            
-            if not SynthesizerClass:
-                return float('inf'), None
 
-            if model_name in ["TimeGAN", "DDPM"]:
-                # Custom wrappers
+            # ── Custom model wrappers (DDPM, TimeGAN) ──────────────────────────
+            if model_name in self.custom_models:
+                SynthClass = self.custom_models[model_name]
                 if model_name == "DDPM":
-                    synthesizer = SynthesizerClass(input_dim=real_data.shape[1])
+                    synthesizer = SynthClass(input_dim=real_data.shape[1])
                 else:
-                    synthesizer = SynthesizerClass() # Internal logic handles dims
+                    synthesizer = SynthClass()
                 synthesizer.fit(real_data)
                 synthetic_data = synthesizer.sample(num_samples=len(real_data))
-            else:
-                # SDV Synthesizers
-                synthesizer = SynthesizerClass(metadata)
+
+            # ── SDV synthesizers (CTGAN, TVAE, GaussianCopula) ─────────────────
+            elif model_name in self.sdv_models:
+                min_rows = self.MIN_ROWS.get(model_name, 10)
+                if len(real_data) < min_rows:
+                    print(f"     -> {model_name} skipped: needs ≥{min_rows} rows "
+                          f"(got {len(real_data)})")
+                    return float('inf'), None
+
+                SynthClass = self.sdv_models[model_name]
+
+                # CTGAN-specific: use more epochs for better GAN convergence
+                if model_name == "CTGAN":
+                    synthesizer = SynthClass(metadata, epochs=300, verbose=False)
+                    print(f"     -> [CTGAN] Training GAN adversarially "
+                          f"({len(real_data)} rows, 300 epochs)...")
+                else:
+                    synthesizer = SynthClass(metadata)
+
                 synthesizer.fit(real_data)
+                # Generate same number of rows as real data for fair comparison
                 synthetic_data = synthesizer.sample(num_rows=len(real_data))
-            
+
+            else:
+                print(f"     -> Unknown model: {model_name}")
+                return float('inf'), None
+
             score = calculate_average_wasserstein_distance(real_data, synthetic_data)
-            print(f"     -> {model_name} Score: {score:.4f}")
-            
+            print(f"     -> {model_name} Wasserstein Score: {score:.4f}")
             return score, synthetic_data
-        
+
         except Exception as e:
             print(f"     -> {model_name} Failed: {e}")
             return float('inf'), None
 
+
 class StatisticalCritic:
     """
     Agent responsible for critiquing logic and selecting optimal generative models
-    via an 'Experimental Pilot'. Now supports MODEL ENSEMBLING.
+    via an 'Experimental Pilot'. Supports Wasserstein-weighted MODEL ENSEMBLING.
+
+    Academic Motivation: Model ensembling achieves better fidelity-utility
+    trade-offs by combining diverse generative capabilities (Zhao et al., 2018).
+    CTGAN is included as the primary GAN-based synthesizer, following the
+    architecture proposed by Xu et al. (2019) for conditional tabular synthesis.
     """
-    
+
     def __init__(self):
         self.library = ModelLibrary()
 
     async def process(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Academic Motivation: Model ensembling achieves better fidelity-utility 
-        trade-offs by combining diverse generative capabilities (Zhao et al., 2018).
-        """
         print("[StatisticalCritic] Running Experimental Pilot with Ensembling...")
-        
+
         raw_data: Optional[pd.DataFrame] = state.get("raw_data")
-        domain = state.get("domain", "General")
-        
+        domain  = state.get("domain", "General")
+        user_model = state.get("selected_model_type", "auto")
+
         if raw_data is None:
             return state
 
+        # Rebuild metadata fresh each call (avoids stale schema across iterations)
         metadata = SingleTableMetadata()
         metadata.detect_from_dataframe(raw_data)
 
-        # 1. Determine Candidates based on Domain
-        candidates = ["TVAE", "GaussianCopula"]
-        if domain == "Finance": candidates.append("TimeGAN")
-        if domain == "Healthcare": candidates.append("DDPM")
+        # ── 1. Select candidate models ──────────────────────────────────────────
+        # CTGAN (GAN) is always included — it is the primary GAN contribution.
+        # Domain-specific additions:
+        #   Healthcare → DDPM (diffusion, best for high-dimensional medical records)
+        #   Finance    → TimeGAN (temporal GAN, best for sequential transactions)
+        if user_model != "auto":
+            # User override from the UI
+            model_map = {
+                "timegan":  ["CTGAN", "TimeGAN"],
+                "vae":      ["TVAE", "GaussianCopula"],
+                "diffusion": ["CTGAN", "DDPM"],
+            }
+            candidates = model_map.get(user_model, ["CTGAN", "TVAE", "GaussianCopula"])
+        else:
+            candidates = ["CTGAN", "TVAE", "GaussianCopula"]
+            if domain == "Healthcare":
+                candidates.append("DDPM")
+            elif domain == "Finance":
+                candidates.append("TimeGAN")
 
-        # 2. Run Pilot and collect samples for Ensembling
-        pilot_results = {}
-        samples_library = {}
-        
-        data_sample = raw_data.sample(min(len(raw_data), 500))
+        print(f"   > Candidate models for {domain}: {candidates}")
+
+        # ── 2. Run pilot on a sample (cap at 500 rows for speed) ───────────────
+        data_sample = raw_data.sample(min(len(raw_data), 500), random_state=42)
+
+        pilot_results  = {}   # model_name → wasserstein score
+        samples_library = {}  # model_name → synthetic DataFrame
 
         for model_name in candidates:
-            score, samples = self.library.train_and_evaluate(model_name, data_sample, metadata)
+            score, samples = self.library.train_and_evaluate(
+                model_name, data_sample, metadata
+            )
             if samples is not None:
-                pilot_results[model_name] = score
+                pilot_results[model_name]   = score
                 samples_library[model_name] = samples
 
-        # 3. Implement Wasserstein-Weighted Ensembling (Step 2.3)
-        # Select Top 2 models and blend them
+        if not pilot_results:
+            print("[StatisticalCritic] All models failed. Returning raw data as fallback.")
+            state["model_selection"] = "Fallback"
+            state["safe_data_asset"] = raw_data
+            state["pilot_metrics"]   = {}
+            return state
+
+        # ── 3. Wasserstein-weighted ensembling of top-2 models ─────────────────
         sorted_models = sorted(pilot_results.items(), key=lambda x: x[1])
+
         if len(sorted_models) >= 2:
             m1, s1 = sorted_models[0]
             m2, s2 = sorted_models[1]
-            
-            # Weighted blending (Inverse of Wasserstein distance: lower score = higher weight)
+
+            # Inverse-Wasserstein weighting: lower score → higher weight
             w1 = 1.0 / (s1 + 1e-6)
             w2 = 1.0 / (s2 + 1e-6)
             norm_w1 = w1 / (w1 + w2)
-            
-            print(f"[StatisticalCritic] Ensembling {m1} ({norm_w1:.1%}) and {m2} ({1-norm_w1:.1%})")
-            
-            # For tabular data, blending can be done via sampling from both distributions
+
+            print(f"[StatisticalCritic] Ensembling {m1} ({norm_w1:.1%}) "
+                  f"+ {m2} ({1 - norm_w1:.1%})")
+
             n1 = int(len(raw_data) * norm_w1)
             n2 = len(raw_data) - n1
-            
+
+            # Safe sampling: clamp to available rows
+            s1_df = samples_library[m1]
+            s2_df = samples_library[m2]
+            n1 = min(n1, len(s1_df))
+            n2 = min(n2, len(s2_df))
+
             ensemble_sample = pd.concat([
-                samples_library[m1].sample(n1),
-                samples_library[m2].sample(n2)
+                s1_df.sample(n1, replace=len(s1_df) < n1, random_state=42),
+                s2_df.sample(n2, replace=len(s2_df) < n2, random_state=42),
             ]).reset_index(drop=True)
-            
+
             state["model_selection"] = f"Ensemble({m1}+{m2})"
-            state["safe_data_asset"] = ensemble_sample # Primary candidate
+            state["safe_data_asset"] = ensemble_sample
+
         else:
             best_model = sorted_models[0][0]
+            print(f"[StatisticalCritic] Single best model: {best_model}")
             state["model_selection"] = best_model
             state["safe_data_asset"] = samples_library[best_model]
 
+        # Log pilot scores for the Judge and UI
         state["pilot_metrics"] = pilot_results
+
+        # Print leaderboard
+        print("\n   ── Model Pilot Leaderboard (lower Wasserstein = better) ──")
+        for rank, (name, score) in enumerate(sorted_models, 1):
+            tag = " ← GAN" if name == "CTGAN" else \
+                  " ← VAE" if name == "TVAE" else \
+                  " ← Diffusion" if name == "DDPM" else \
+                  " ← Temporal GAN" if name == "TimeGAN" else ""
+            print(f"   #{rank}  {name:<18} Wasserstein={score:.4f}{tag}")
+        print()
+
         return state

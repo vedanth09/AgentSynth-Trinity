@@ -5,6 +5,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import asyncio
+import threading
+import traceback
+import queue
 import plotly.express as px
 import plotly.graph_objects as go
 import json
@@ -43,12 +46,53 @@ def reset_app():
     st.session_state.config = GenerationConfig(domain="Healthcare", goal="Synthesize high-fidelity healthcare data")
     st.rerun()
 
+# FIX: The pipeline runs in a background thread (needed to avoid asyncio conflicts
+# with Streamlit). But Streamlit UI calls (status.write, st.caption) CANNOT be
+# made from background threads — they raise NoSessionContext.
+# Solution: pipeline puts update messages into a thread-safe queue. The main
+# thread drains the queue and writes to the UI after the pipeline finishes.
+def run_async_pipeline(coro, update_queue):
+    result = {"value": None, "error": None, "tb": None}
+
+    async def _wrapped():
+        final_state = None
+        async for event in coro:
+            node_name = list(event.keys())[0]
+            node_output = event[node_name]
+            # Put UI updates into queue instead of calling Streamlit directly
+            update_queue.put(("agent_done", node_name, node_output))
+            final_state = node_output
+        return final_state
+
+    def _thread_target():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result["value"] = loop.run_until_complete(_wrapped())
+        except Exception as exc:
+            result["error"] = exc
+            result["tb"] = traceback.format_exc()
+        finally:
+            update_queue.put(("done", None, None))  # signal completion
+            loop.close()
+
+    t = threading.Thread(target=_thread_target, daemon=True)
+    t.start()
+    t.join()
+
+    if result["error"]:
+        print("\n===== PIPELINE ERROR TRACEBACK =====")
+        print(result["tb"])
+        print("=====================================\n")
+        raise result["error"]
+
+    return result["value"]
+
 # --- Custom Styling ---
 st.markdown("""
 <style>
     .main { background-color: #f8f9fa; }
     .stButton>button { border-radius: 5px; height: 3em; width: 100%; }
-    .chip { display: inline-block; padding: 5px 10px; border-radius: 15px; background: #e9ecef; margin: 2px; cursor: pointer; }
     .stMetric { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 </style>
 """, unsafe_allow_html=True)
@@ -64,7 +108,6 @@ col_left, col_right = st.columns([1.2, 0.8], gap="large")
 with col_left:
     st.header("🔡 Describe the Data You Need")
     
-    # Prompt Input
     prompt_input = st.text_area(
         "Natural Language Prompt",
         value=st.session_state.prompt,
@@ -73,7 +116,6 @@ with col_left:
         label_visibility="collapsed"
     )
     
-    # Example Chips
     st.write("💡 Examples:")
     examples = [
         "500 diabetic patient records with high privacy",
@@ -91,11 +133,8 @@ with col_left:
         if not prompt_input and not st.session_state.prompt:
             st.warning("Please describe the data first or select an example.")
         else:
-            # Re-parse if modified
             if prompt_input != st.session_state.prompt:
                 update_config_from_prompt(prompt_input)
-            
-            # Start Pipeline
             st.session_state.results = "running"
             st.rerun()
 
@@ -111,11 +150,12 @@ with col_right:
         out_format = st.selectbox("Output Format", ["CSV", "JSON", "Parquet"])
         seed = st.number_input("Random Seed", value=42)
 
-        # Update config with overrides
         st.session_state.config.domain = domain
         st.session_state.config.rows = rows
         st.session_state.config.epsilon = epsilon
         st.session_state.config.model = model_type
+        st.session_state.config.output_format = out_format
+        st.session_state.config.seed = int(seed)
 
     if st.button("🔄 Reset System"):
         reset_app()
@@ -124,68 +164,78 @@ with col_right:
 if st.session_state.results == "running":
     st.divider()
     with st.status("🕵️ Agent Orchestrator: Initiating Synthesis...", expanded=True) as status:
-        # Load local data sample based on domain
+
         sample_path = f"data/{st.session_state.config.domain.lower()}_sample.csv"
         raw_df = data_loader.load_csv(sample_path)
-        
+
         if raw_df is None:
-            st.error(f"Failed to load sample data for {st.session_state.config.domain}. Check data/ folder.")
-            st.session_state.results = None
-            status.update(label="Failed to Load Data", state="error")
-        else:
-            # Prepare Initial State
-            state = AgentState(
-                raw_data=raw_df,
-                domain=st.session_state.config.domain,
-                goal=st.session_state.config.goal,
-                epsilon_input=st.session_state.config.epsilon,
-                num_rows=st.session_state.config.rows,
-                selected_model_type=st.session_state.config.model
+            status.write(
+                f"💡 No input data file found — activating **cold-start mode** "
+                f"(generating {st.session_state.config.domain} seed from domain priors)"
             )
 
-            # Stream LangGraph Events
-            async def run_pipeline():
-                final_state = None
-                async for event in run_trinity_pipeline(state):
-                    # event is a dict of {node_name: output}
-                    node_name = list(event.keys())[0]
-                    node_output = event[node_name]
-                    
-                    # Update Progress in UI
-                    status.write(f"✅ Agent Completed: **{node_name.capitalize()}**")
-                    if "trace" in node_output and node_output["trace"]:
-                        st.caption(node_output["trace"][-1])
-                    
-                    final_state = node_output
-                return final_state
+        state = AgentState(
+            raw_data=raw_df,
+            domain=st.session_state.config.domain,
+            goal=st.session_state.config.goal,
+            epsilon_input=st.session_state.config.epsilon,
+            num_rows=st.session_state.config.rows,
+            selected_model_type=st.session_state.config.model,
+            output_format=getattr(st.session_state.config, "output_format", "CSV"),
+            seed=getattr(st.session_state.config, "seed", 42),
+        )
 
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                final_results = loop.run_until_complete(run_pipeline())
-                
-                st.session_state.results = final_results
-                status.update(label="Synthesis Complete: Trinity Standards Met!", state="complete")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Pipeline Error: {e}")
-                st.session_state.results = None
-                status.update(label="Pipeline Failed", state="error")
+        try:
+            update_queue = queue.Queue()
+
+            # Run pipeline — all Streamlit UI calls happen HERE on main thread
+            final_results = run_async_pipeline(
+                run_trinity_pipeline(state),
+                update_queue
+            )
+
+            # Drain the queue and write updates to UI (safe — main thread)
+            while not update_queue.empty():
+                msg_type, node_name, node_output = update_queue.get_nowait()
+                if msg_type == "agent_done":
+                    status.write(f"✅ Agent Completed: **{node_name.capitalize()}**")
+
+            st.session_state.results = final_results
+            mode = "Cold-Start" if raw_df is None else "Augmentation"
+            status.update(
+                label=f"Synthesis Complete [{mode} Mode]: Trinity Standards Met!",
+                state="complete"
+            )
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Pipeline Error: {e}")
+            st.session_state.results = None
+            status.update(label="Pipeline Failed", state="error")
 
 # --- Results Dashboard ---
 if isinstance(st.session_state.results, dict):
     res_state = st.session_state.results
+
+    scorecard = res_state.get("trinity_scorecard") or {}
+    fidelity  = scorecard.get("fidelity", {}) or {}
+    utility   = scorecard.get("utility", {})  or {}
+    privacy_s = scorecard.get("privacy", {})  or {}
+
+    wass   = fidelity.get("wasserstein", 1.0)
+    tstr   = utility.get("tstr_accuracy", 0.0)
+    f_pass = wass < 0.15
+    u_pass = utility.get("performance_drop", 100) < 20
+    p_pass = bool(privacy_s.get("is_compliant", False))
+
     st.divider()
     
-    # KPIs
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     with kpi1:
         st.metric("Judge Decision", res_state.get("judge_decision", "N/A"))
     with kpi2:
-        wass = res_state.get("trinity_scorecard", {}).get("fidelity", {}).get("wasserstein", 0)
         st.metric("Fidelity (Wasserstein)", f"{wass:.4f}")
     with kpi3:
-        tstr = res_state.get("trinity_scorecard", {}).get("utility", {}).get("tstr_accuracy", 0)
         st.metric("Utility (TSTR)", f"{tstr:.1%}")
     with kpi4:
         eps = res_state.get("privacy_proof", {}).get("epsilon", st.session_state.config.epsilon)
@@ -215,18 +265,12 @@ if isinstance(st.session_state.results, dict):
         
         with col_rad:
             st.subheader("Trinity Radar Chart")
-            scorecard = res_state.get("trinity_scorecard", {})
             fig_radar = reporter.generate_radar_chart(scorecard, output_path=None)
             st.pyplot(fig_radar)
         
         with col_metrics:
             st.subheader("Metric Compliance Breakdown")
-            # Logic for badges
             def get_badge(passed): return "✅ Pass" if passed else "❌ Fail"
-            
-            f_pass = scorecard.get("fidelity", {}).get("wasserstein", 1.0) < 0.15
-            u_pass = scorecard.get("utility", {}).get("performance_drop", 100) < 20
-            p_pass = scorecard.get("privacy", {}).get("is_compliant", False)
             
             comp_data = {
                 "Metric": ["Fidelity (W-Dist)", "Utility (TSTR)", "Privacy (MIA/Link)"],
@@ -235,7 +279,6 @@ if isinstance(st.session_state.results, dict):
             }
             st.table(pd.DataFrame(comp_data))
             
-            # Overall Score
             overall = int((f_pass + u_pass + p_pass) / 3 * 100)
             grade = "Excellent (85+)" if overall > 85 else "Good (70+)" if overall >= 70 else "Needs Improvement (<70)"
             st.metric("Overall Trinity Score", f"{overall}/100", delta=grade, delta_color="normal")
@@ -258,19 +301,31 @@ if isinstance(st.session_state.results, dict):
     # --- Downloads ---
     st.divider()
     st.subheader("⬇️ Download Assets")
+    synth_df = res_state.get("safe_data_asset")
     d_col1, d_col2, d_col3, d_col4 = st.columns(4)
     
     if synth_df is not None:
-        csv = synth_df.to_csv(index=False).encode('utf-8')
-        d_col1.download_button("Download Synthetic CSV", data=csv, file_name="synthetic_data.csv", mime="text/csv")
+        chosen_format = getattr(st.session_state.config, "output_format", "CSV")
+        if chosen_format == "JSON":
+            dl_data = synth_df.to_json(orient="records", indent=2).encode("utf-8")
+            dl_name, dl_mime = "synthetic_data.json", "application/json"
+        elif chosen_format == "Parquet":
+            import io
+            buf = io.BytesIO()
+            synth_df.to_parquet(buf, index=False)
+            dl_data = buf.getvalue()
+            dl_name, dl_mime = "synthetic_data.parquet", "application/octet-stream"
+        else:
+            dl_data = synth_df.to_csv(index=False).encode("utf-8")
+            dl_name, dl_mime = "synthetic_data.csv", "text/csv"
+
+        d_col1.download_button(f"Download Synthetic {chosen_format}", data=dl_data, file_name=dl_name, mime=dl_mime)
         
-        # Reports
-        report_json = json.dumps(scorecard, indent=4).encode('utf-8')
+        report_json = json.dumps(scorecard, indent=4).encode("utf-8")
         d_col2.download_button("Download Trinity Report", data=report_json, file_name="trinity_report.json", mime="application/json")
         
-        audit_json = json.dumps(res_state.get("privacy_proof", {}), indent=4).encode('utf-8')
+        audit_json = json.dumps(res_state.get("privacy_proof", {}), indent=4).encode("utf-8")
         d_col3.download_button("Download Audit Log", data=audit_json, file_name="audit_log.json", mime="application/json")
         
-        # Cert (Mocking PDF as .txt for simplicity as per Step 5 context)
         cert_text = "Trinity Compliance Certificate\n" + json.dumps(scorecard, indent=2)
-        d_col4.download_button("Download Certificate (TXT)", data=cert_text.encode('utf-8'), file_name="certificate.txt")
+        d_col4.download_button("Download Certificate (TXT)", data=cert_text.encode("utf-8"), file_name="certificate.txt")

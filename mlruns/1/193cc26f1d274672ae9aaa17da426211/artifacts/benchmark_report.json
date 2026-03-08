@@ -1,0 +1,21 @@
+{
+    "fidelity": {
+        "wasserstein": 2074.5142976447964,
+        "js_divergence": 0.001977265183060444,
+        "correlation_similarity": 0.533277000967846,
+        "mmd": 0.06324555322168557,
+        "kl_divergence": 15.57718787858833
+    },
+    "utility": {
+        "performance_drop": 100.0
+    },
+    "privacy": {
+        "linkability": {
+            "exact_matches": 0,
+            "is_compliant": true
+        },
+        "mia_risk_score": 0.9833333333333333,
+        "k_anonymity": 8,
+        "is_compliant": false
+    }
+}

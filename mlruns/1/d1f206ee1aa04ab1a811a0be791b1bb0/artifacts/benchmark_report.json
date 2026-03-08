@@ -1,0 +1,24 @@
+{
+    "fidelity": {
+        "wasserstein": 0.20539883814350998,
+        "js_divergence": 0.005255824854504077,
+        "correlation_similarity": 0.49760869472351643,
+        "mmd": 0.07479203215508147,
+        "kl_divergence": 10.942793844991936
+    },
+    "utility": {
+        "baseline_accuracy": 0.7933333333333333,
+        "tstr_accuracy": 0.7866666666666666,
+        "trts_accuracy": 0.556,
+        "performance_drop": 0.666666666666671
+    },
+    "privacy": {
+        "linkability": {
+            "exact_matches": 0,
+            "is_compliant": true
+        },
+        "mia_risk_score": 1.0,
+        "k_anonymity": 3,
+        "is_compliant": false
+    }
+}

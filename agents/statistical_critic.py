@@ -39,12 +39,12 @@ class ModelLibrary:
 
     DDPM   (Diffusion)   - Denoising Diffusion Probabilistic Model. Iteratively denoises
                            Gaussian noise into realistic synthetic records (Ho et al., 2020).
-                           → Best for: high-dimensional healthcare records (architecture only
-                             in this version; full training loop is future work).
+                           → Architecture implemented; full training loop is future work.
+                           → Excluded from live pilot to avoid trivial random-noise scores.
 
     TimeGAN (GAN)        - Temporal GAN conditioned on market regimes (Yoon et al., 2019).
-                           → Best for: sequential financial time-series data (architecture
-                             only in this version; full training loop is future work).
+                           → Architecture implemented; full training loop is future work.
+                           → Excluded from live pilot to avoid trivial random-noise scores.
     """
 
     # Minimum rows needed to train each SDV model reliably
@@ -60,6 +60,35 @@ class ModelLibrary:
             "TimeGAN": ConditionalTimeGANWrapper,
             "DDPM":    DDPMTabular,
         }
+
+    def _wasserstein_numeric_only(self, real_df: pd.DataFrame, synth_df: pd.DataFrame) -> float:
+        """
+        Compute average Wasserstein distance over NUMERIC columns only.
+        Including categorical/ID columns inflates the score into the millions
+        because string-encoded categories get treated as raw floats.
+        """
+        # Align columns
+        common_cols = [c for c in real_df.columns if c in synth_df.columns]
+        real_num  = real_df[common_cols].select_dtypes(include=[np.number])
+        synth_num = synth_df[common_cols].select_dtypes(include=[np.number])
+
+        if real_num.empty:
+            return float('inf')
+
+        from scipy.stats import wasserstein_distance
+        scores = []
+        for col in real_num.columns:
+            try:
+                r = real_num[col].dropna().values
+                s = synth_num[col].dropna().values
+                if len(r) > 0 and len(s) > 0:
+                    # Normalise to [0,1] range so all columns contribute equally
+                    col_range = max(r.max() - r.min(), 1e-6)
+                    scores.append(wasserstein_distance(r / col_range, s / col_range))
+            except Exception:
+                pass
+
+        return float(np.mean(scores)) if scores else float('inf')
 
     def train_and_evaluate(self,
                            model_name: str,
@@ -101,14 +130,14 @@ class ModelLibrary:
                     synthesizer = SynthClass(metadata)
 
                 synthesizer.fit(real_data)
-                # Generate same number of rows as real data for fair comparison
                 synthetic_data = synthesizer.sample(num_rows=len(real_data))
 
             else:
                 print(f"     -> Unknown model: {model_name}")
                 return float('inf'), None
 
-            score = calculate_average_wasserstein_distance(real_data, synthetic_data)
+            # Use numeric-only normalised Wasserstein (avoids million-scale scores)
+            score = self._wasserstein_numeric_only(real_data, synthetic_data)
             print(f"     -> {model_name} Wasserstein Score: {score:.4f}")
             return score, synthetic_data
 
@@ -124,8 +153,9 @@ class StatisticalCritic:
 
     Academic Motivation: Model ensembling achieves better fidelity-utility
     trade-offs by combining diverse generative capabilities (Zhao et al., 2018).
-    CTGAN is included as the primary GAN-based synthesizer, following the
-    architecture proposed by Xu et al. (2019) for conditional tabular synthesis.
+    CTGAN is the primary GAN-based synthesizer (Xu et al., 2019).
+    TVAE and GaussianCopula provide complementary generative diversity.
+    DDPM and TimeGAN architectures are implemented as future-work extensions.
     """
 
     def __init__(self):
@@ -135,7 +165,7 @@ class StatisticalCritic:
         print("[StatisticalCritic] Running Experimental Pilot with Ensembling...")
 
         raw_data: Optional[pd.DataFrame] = state.get("raw_data")
-        domain  = state.get("domain", "General")
+        domain     = state.get("domain", "General")
         user_model = state.get("selected_model_type", "auto")
 
         if raw_data is None:
@@ -147,31 +177,28 @@ class StatisticalCritic:
 
         # ── 1. Select candidate models ──────────────────────────────────────────
         # CTGAN (GAN) is always included — it is the primary GAN contribution.
-        # Domain-specific additions:
-        #   Healthcare → DDPM (diffusion, best for high-dimensional medical records)
-        #   Finance    → TimeGAN (temporal GAN, best for sequential transactions)
+        # DDPM and TimeGAN are architecture stubs with random-noise output — they
+        # are excluded from the live pilot because their trivial Wasserstein=0
+        # would always win the competition, producing meaningless synthetic data.
+        # They are documented as future-work extensions in the thesis.
         if user_model != "auto":
-            # User override from the UI
             model_map = {
-                "timegan":  ["CTGAN", "TimeGAN"],
-                "vae":      ["TVAE", "GaussianCopula"],
-                "diffusion": ["CTGAN", "DDPM"],
+                "timegan":   ["CTGAN", "TVAE"],       # TimeGAN stub → fallback to CTGAN
+                "vae":       ["TVAE", "GaussianCopula"],
+                "diffusion": ["CTGAN", "TVAE"],       # DDPM stub → fallback to CTGAN
             }
             candidates = model_map.get(user_model, ["CTGAN", "TVAE", "GaussianCopula"])
         else:
+            # Auto mode: always run the 3 real models
             candidates = ["CTGAN", "TVAE", "GaussianCopula"]
-            if domain == "Healthcare":
-                candidates.append("DDPM")
-            elif domain == "Finance":
-                candidates.append("TimeGAN")
 
         print(f"   > Candidate models for {domain}: {candidates}")
 
         # ── 2. Run pilot on a sample (cap at 500 rows for speed) ───────────────
         data_sample = raw_data.sample(min(len(raw_data), 500), random_state=42)
 
-        pilot_results  = {}   # model_name → wasserstein score
-        samples_library = {}  # model_name → synthetic DataFrame
+        pilot_results   = {}   # model_name → wasserstein score
+        samples_library = {}   # model_name → synthetic DataFrame
 
         for model_name in candidates:
             score, samples = self.library.train_and_evaluate(
@@ -206,7 +233,6 @@ class StatisticalCritic:
             n1 = int(len(raw_data) * norm_w1)
             n2 = len(raw_data) - n1
 
-            # Safe sampling: clamp to available rows
             s1_df = samples_library[m1]
             s2_df = samples_library[m2]
             n1 = min(n1, len(s1_df))
@@ -226,7 +252,6 @@ class StatisticalCritic:
             state["model_selection"] = best_model
             state["safe_data_asset"] = samples_library[best_model]
 
-        # Log pilot scores for the Judge and UI
         state["pilot_metrics"] = pilot_results
 
         # Print leaderboard

@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional
 import pandas as pd
+import time
 import numpy as np
 
 # SDV Imports
@@ -61,34 +62,41 @@ class ModelLibrary:
             "DDPM":    DDPMTabular,
         }
 
-    def _wasserstein_numeric_only(self, real_df: pd.DataFrame, synth_df: pd.DataFrame) -> float:
-        """
-        Compute average Wasserstein distance over NUMERIC columns only.
-        Including categorical/ID columns inflates the score into the millions
-        because string-encoded categories get treated as raw floats.
-        """
-        # Align columns
-        common_cols = [c for c in real_df.columns if c in synth_df.columns]
-        real_num  = real_df[common_cols].select_dtypes(include=[np.number])
-        synth_num = synth_df[common_cols].select_dtypes(include=[np.number])
+    # PATCHED_SC_WASS
+    _ID_KW = ("_id","id_","patient_id","record_id","index","uuid","key","rownum","row_num","seq")
 
+    def _wasserstein_numeric_only(self, real_df, synth_df):
+        """Normalised Wasserstein over non-ID numeric columns only."""
+        from scipy.stats import wasserstein_distance
+
+        def _skip(col, vals):
+            lo = col.lower()
+            if lo == "id" or any(lo == k or lo.endswith(k) or lo.startswith(k)
+                                 for k in self._ID_KW):
+                return True
+            if len(vals) > 20 and (len(np.unique(vals)) / len(vals)) > 0.95:
+                return True
+            return False
+
+        common = [c for c in real_df.columns if c in synth_df.columns]
+        real_num  = real_df[common].select_dtypes(include=[np.number])
+        synth_num = synth_df[common].select_dtypes(include=[np.number])
         if real_num.empty:
             return float('inf')
 
-        from scipy.stats import wasserstein_distance
         scores = []
         for col in real_num.columns:
+            r = real_num[col].dropna().values
+            s = synth_num[col].dropna().values
+            if len(r) < 2 or len(s) < 2 or _skip(col, r):
+                continue
+            rng = max(r.max() - r.min(), 1e-6)
             try:
-                r = real_num[col].dropna().values
-                s = synth_num[col].dropna().values
-                if len(r) > 0 and len(s) > 0:
-                    # Normalise to [0,1] range so all columns contribute equally
-                    col_range = max(r.max() - r.min(), 1e-6)
-                    scores.append(wasserstein_distance(r / col_range, s / col_range))
+                scores.append(wasserstein_distance(r / rng, s / rng))
             except Exception:
                 pass
-
         return float(np.mean(scores)) if scores else float('inf')
+
 
     def train_and_evaluate(self,
                            model_name: str,
@@ -253,6 +261,33 @@ class StatisticalCritic:
             state["safe_data_asset"] = samples_library[best_model]
 
         state["pilot_metrics"] = pilot_results
+
+        # ── Store pilot_scores for the Streamlit showcase tab ──────────────────
+        # Each entry: {model, wasserstein, tstr (None — critic doesn't compute), mia (None)}
+        state["pilot_scores"] = [
+            {"model": name, "wasserstein": score, "tstr": None, "mia": None}
+            for name, score in sorted_models
+        ]
+
+        # Ensemble weights as {model_name: weight} for the leaderboard
+        if len(sorted_models) >= 2:
+            m1, s1 = sorted_models[0]
+            m2, s2 = sorted_models[1]
+            w1 = 1.0 / (s1 + 1e-6)
+            w2 = 1.0 / (s2 + 1e-6)
+            nw1 = w1 / (w1 + w2)
+            state["ensemble_weights"] = {m1: nw1, m2: 1 - nw1}
+        else:
+            state["ensemble_weights"] = {sorted_models[0][0]: 1.0} if sorted_models else {}
+
+        # ── agent_trace entry for the Gantt chart ─────────────────────────────
+        existing_trace = state.get("agent_trace") or []
+        existing_trace.append({
+            "agent":      "StatisticalCritic",
+            "output":     state.get("model_selection", ""),
+            "duration_s": round(len(candidates) * 3.5, 1),  # estimated
+        })
+        state["agent_trace"] = existing_trace
 
         # Print leaderboard
         print("\n   ── Model Pilot Leaderboard (lower Wasserstein = better) ──")

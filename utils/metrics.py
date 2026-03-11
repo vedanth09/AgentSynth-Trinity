@@ -2,53 +2,61 @@ import pandas as pd
 import numpy as np
 from scipy.stats import wasserstein_distance, entropy
 from typing import List, Dict, Optional, Tuple, Any
-from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics.pairwise import rbf_kernel
+
+def _is_id_col(col_name: str, values: np.ndarray) -> bool:
+    """
+    Heuristic: return True if this column looks like a row identifier.
+    ID columns blow up Wasserstein because SDV regenerates them as fresh
+    integer sequences (1…N) whose absolute values differ from the real IDs.
+    """
+    lower = col_name.lower()
+    # Name-based check
+    id_keywords = ("_id", "id_", "patient_id", "record_id", "index",
+                   "uuid", "key", "rownum", "row_num", "seq")
+    if lower == "id" or any(lower == k or lower.endswith(k) or lower.startswith(k)
+                            for k in id_keywords):
+        return True
+    # Uniqueness-ratio check: >95% unique values → likely a key column
+    if len(values) > 20 and (len(np.unique(values)) / len(values)) > 0.95:
+        return True
+    return False
 
 
-def calculate_average_wasserstein_distance(real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> float:
-    """
-    Calculates the average NORMALISED Wasserstein distance over numeric columns.
-    Each column is scaled to [0,1] before comparison so high-magnitude columns
-    like treatment_cost don't dominate the score.
-    ID columns (patient_id etc.) are excluded as their large ranges corrupt scores.
-    """
-    # Exclude ID/surrogate-key columns — they have huge ranges that dominate the average
-    def _is_id_col(col, series):
-        if col.lower() in {"patient_id","account_id","record_id","user_id","id"} or col.lower().endswith("_id"):
+def calculate_average_wasserstein_distance(real_data, synthetic_data):
+    # PATCHED_WASSERSTEIN v4
+    ID_KW = ("_id","id_","patient_id","record_id","index","uuid","key","rownum","row_num","seq")
+
+    def _skip(col, vals):
+        lo = col.lower()
+        if lo == "id" or any(lo == k or lo.endswith(k) or lo.startswith(k) for k in ID_KW):
             return True
-        if series.nunique() > 0.9 * len(series) and pd.api.types.is_numeric_dtype(series):
+        if len(vals) > 20 and (len(np.unique(vals)) / len(vals)) > 0.95:
             return True
         return False
 
-    numeric_columns = [c for c in real_data.select_dtypes(include=[np.number]).columns
-                       if not _is_id_col(c, real_data[c])]
     distances = []
-
-    if len(numeric_columns) == 0:
-        return 0.0
-
-    for col in numeric_columns:
-        if col in synthetic_data.columns:
-            u_values = real_data[col].dropna().values.astype(float)
-            v_values = synthetic_data[col].dropna().values.astype(float)
-            if len(u_values) > 0 and len(v_values) > 0:
-                # Normalise to [0,1] so all columns contribute equally
-                col_min = min(u_values.min(), v_values.min())
-                col_max = max(u_values.max(), v_values.max())
-                col_range = max(col_max - col_min, 1e-6)
-                u_norm = (u_values - col_min) / col_range
-                v_norm = (v_values - col_min) / col_range
-                distances.append(wasserstein_distance(u_norm, v_norm))
+    for col in real_data.select_dtypes(include=[np.number]).columns:
+        if col not in synthetic_data.columns:
+            continue
+        u = real_data[col].dropna().values
+        v = synthetic_data[col].dropna().values
+        if len(u) < 2 or len(v) < 2 or _skip(col, u):
+            continue
+        rng = float(u.max() - u.min())
+        if rng < 1e-6:
+            continue
+        distances.append(wasserstein_distance(u / rng, v / rng))
 
     return float(np.mean(distances)) if distances else 0.0
 
-
 def calculate_jensen_shannon_divergence(real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> float:
-    """Average Jensen-Shannon Divergence for categorical columns. Lower = better."""
+    """
+    Calculates average Jensen-Shannon Divergence for categorical columns.
+    Lower is better (0 = identical distributions).
+    """
     cat_columns = real_data.select_dtypes(include=['object', 'category']).columns
     divergences = []
 
@@ -57,159 +65,165 @@ def calculate_jensen_shannon_divergence(real_data: pd.DataFrame, synthetic_data:
 
     for col in cat_columns:
         if col in synthetic_data.columns:
-            real_probs  = real_data[col].value_counts(normalize=True)
+            # Get probability distributions
+            real_probs = real_data[col].value_counts(normalize=True)
             synth_probs = synthetic_data[col].value_counts(normalize=True)
+            
+            # Align indices (union of categories)
             all_cats = set(real_probs.index).union(set(synth_probs.index))
             p = np.array([real_probs.get(c, 0) for c in all_cats])
             q = np.array([synth_probs.get(c, 0) for c in all_cats])
+            
+            # Calculate JS Divergence
             m = 0.5 * (p + q)
-            js_div = 0.5 * (entropy(p + 1e-10, m + 1e-10) + entropy(q + 1e-10, m + 1e-10))
+            js_div = 0.5 * (entropy(p, m) + entropy(q, m))
             divergences.append(js_div)
 
-    return float(np.nanmean(divergences)) if divergences else 0.0
-
+    if not divergences:
+        return 0.0
+        
+    return float(np.nanmean(divergences))
 
 def calculate_correlation_similarity(real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> float:
-    """Compares correlation matrices. Higher = better (1.0 = identical)."""
+    """
+    Compares correlation matrices. Returns 1 - L2 norm of the difference.
+    Higher is better (1.0 = identical correlations).
+    """
     numeric_cols = real_data.select_dtypes(include=[np.number]).columns
     if len(numeric_cols) < 2:
         return 1.0
-    real_corr  = real_data[numeric_cols].corr().fillna(0)
+
+    real_corr = real_data[numeric_cols].corr().fillna(0)
     synth_corr = synthetic_data[numeric_cols].corr().fillna(0)
+    
     diff = np.linalg.norm(real_corr.values - synth_corr.values)
+    # Normalize by size to keep reasonable scale, simpler approach:
+    # return difference magnitude. Let's return 1 / (1 + diff) for a 0-1 score roughly
     return 1.0 / (1.0 + diff)
 
+from sklearn.metrics.pairwise import rbf_kernel
 
 def calculate_mmd(real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> float:
-    """Maximum Mean Discrepancy with RBF kernel (Gretton et al., 2012)."""
+    """
+    Calculates Maximum Mean Discrepancy (MMD) with RBF kernel.
+    
+    Academic Motivation: MMD (Gretton et al., 2012) is a kernel-based test statistic 
+    that measures the distance between distributions in a reproducing kernel 
+    Hilbert space (RKHS).
+    """
     numeric_cols = real_data.select_dtypes(include=[np.number]).columns
-    if len(numeric_cols) == 0:
-        return 0.0
-    X = real_data[numeric_cols].dropna().values[:500].astype(float)
-    Y = synthetic_data[numeric_cols].dropna().values[:500].astype(float)
+    if len(numeric_cols) == 0: return 0.0
+    
+    X = real_data[numeric_cols].dropna().values[:500]
+    Y = synthetic_data[numeric_cols].dropna().values[:500]
+    
+    # Scrub Inf/NaN
     X = X[np.isfinite(X).all(axis=1)]
     Y = Y[np.isfinite(Y).all(axis=1)]
-    if len(X) == 0 or len(Y) == 0:
-        return 0.0
+    
+    if len(X) == 0 or len(Y) == 0: return 0.0
+    
     K_XX = rbf_kernel(X, X)
     K_YY = rbf_kernel(Y, Y)
     K_XY = rbf_kernel(X, Y)
-    return float(np.sqrt(max(K_XX.mean() + K_YY.mean() - 2 * K_XY.mean(), 0)))
-
+    
+    mmd = K_XX.mean() + K_YY.mean() - 2 * K_XY.mean()
+    return float(np.sqrt(max(mmd, 0)))
 
 def calculate_kl_divergence(real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> float:
-    """Average KL-Divergence across all features."""
+    """
+    Calculates average KL-Divergence across all features.
+    """
     divergences = []
     for col in real_data.columns:
         if col in synthetic_data.columns:
             p = real_data[col].value_counts(normalize=True).sort_index()
             q = synthetic_data[col].value_counts(normalize=True).sort_index()
+            
+            # Align
             all_idx = p.index.union(q.index)
             p_vals = np.array([p.get(i, 1e-10) for i in all_idx])
             q_vals = np.array([q.get(i, 1e-10) for i in all_idx])
+            
             divergences.append(entropy(p_vals, q_vals))
+            
     return float(np.mean(divergences)) if divergences else 0.0
 
-
-def _safe_encode_target(real_series: pd.Series, synth_series: pd.Series):
-    """
-    Fits a LabelEncoder on the union of real + synthetic target values,
-    then transforms both. Returns (y_real_encoded, y_synth_encoded).
-    Handles type mismatches (int vs string '0'/'1') by casting to str first.
-    """
-    le = LabelEncoder()
-    combined = pd.concat([real_series, synth_series]).astype(str)
-    le.fit(combined)
-    return (
-        le.transform(real_series.astype(str)),
-        le.transform(synth_series.astype(str)),
-    )
-
-
-def _encode_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Label-encode all object columns so XGBoost can consume them."""
-    out = df.copy()
-    for col in out.select_dtypes(include=["object"]).columns:
-        le = LabelEncoder()
-        out[col] = le.fit_transform(out[col].astype(str))
-    return out
-
-
-def train_test_utility_evaluation(real_data: pd.DataFrame,
-                                  synthetic_data: pd.DataFrame,
+def train_test_utility_evaluation(real_data: pd.DataFrame, 
+                                  synthetic_data: pd.DataFrame, 
                                   target_col: str) -> Dict[str, float]:
     """
-    TSTR / TRTS utility evaluation (Jordon et al., 2018).
-
-    Train-Synthetic-Test-Real (TSTR): model trained on synthetic, tested on real.
-    Train-Real-Test-Synthetic (TRTS): model trained on real, tested on synthetic.
-    The TSTR accuracy gap measures preservation of decision boundaries.
+    Advanced Utility: TSTR (Train-Synthetic-Test-Real) and TRTS (Train-Real-Test-Synthetic).
+    
+    Academic Motivation: The TSTR/TRTS accuracy gap (Jordon et al., 2018) measures 
+    preservation of decision boundaries across the real-synthetic divide.
     """
     if target_col not in real_data.columns or target_col not in synthetic_data.columns:
         return {"performance_drop": 0.0}
 
+    def preprocess(df):
+        df_encoded = df.copy()
+        for col in df_encoded.select_dtypes(include=['object']):
+            le = LabelEncoder()
+            df_encoded[col] = le.fit_transform(df_encoded[col].astype(str))
+        return df_encoded
+
     try:
-        # Drop NAs and reset index to guarantee clean 0-based indexing
-        real_clean  = real_data.dropna().reset_index(drop=True)
-        synth_clean = synthetic_data.dropna().reset_index(drop=True)
+        from xgboost import XGBClassifier  # lazy import — avoids libomp crash at module load
+        real_proc = preprocess(real_data.dropna())
+        synth_proc = preprocess(synthetic_data.dropna())
+        
+        # Label Encode the Target Column specifically for XGBoost compatibility
+        le_target = LabelEncoder()
+        
+        X_real = real_proc.drop(columns=[target_col])
+        y_real = pd.Series(le_target.fit_transform(real_proc[target_col]))
+        
+        X_synth = synth_proc.drop(columns=[target_col])
+        # Handle unseen labels in synthetic data by falling back to -1 or similar, but
+        # since TRTS trains on synthetic and tests on real, it's safer to fit a new encoder
+        # per dataset or fit on the union. Let's fit on the union to be safe.
+        le_target.fit(pd.concat([real_proc[target_col], synth_proc[target_col]]))
+        
+        y_real = pd.Series(le_target.transform(real_proc[target_col]))
+        y_synth = pd.Series(le_target.transform(synth_proc[target_col]))
 
-        # Encode features
-        real_enc  = _encode_features(real_clean)
-        synth_enc = _encode_features(synth_clean)
-
-        # Encode target — fit on union to avoid unseen-label errors
-        y_real_arr, y_synth_arr = _safe_encode_target(
-            real_enc[target_col], synth_enc[target_col]
-        )
-
-        X_real  = real_enc.drop(columns=[target_col]).values
-        X_synth = synth_enc.drop(columns=[target_col]).values
-
-        # Remove non-finite rows using numpy masks (no index alignment issues)
-        real_mask  = np.isfinite(X_real).all(axis=1)
-        synth_mask = np.isfinite(X_synth).all(axis=1)
-
-        X_real,  y_real  = X_real[real_mask],   y_real_arr[real_mask]
-        X_synth, y_synth = X_synth[synth_mask], y_synth_arr[synth_mask]
-
+        # Scrub Inf
+        real_mask = np.isfinite(X_real.select_dtypes(include=[np.number])).all(axis=1)
+        X_real, y_real = X_real[real_mask], y_real[real_mask]
+        
+        synth_mask = np.isfinite(X_synth.select_dtypes(include=[np.number])).all(axis=1)
+        X_synth, y_synth = X_synth[synth_mask], y_synth[synth_mask]
+        
         if len(X_real) < 10 or len(X_synth) < 10:
-            print(f"   [Utility] Too few rows after cleaning, skipping.")
-            return {"performance_drop": 0.0, "tstr_accuracy": 0.0,
-                    "trts_accuracy": 0.0, "baseline_accuracy": 0.0}
-
-        X_r_train, X_r_test, y_r_train, y_r_test = train_test_split(
-            X_real, y_real, test_size=0.3, random_state=42
-        )
-
-        # Baseline R→R
-        model_rr = XGBClassifier(eval_metric="logloss", verbosity=0)
-        model_rr.fit(X_r_train, y_r_train)
+            return {"performance_drop": 0.0}
+        
+        X_r_train, X_r_test, y_r_train, y_r_test = train_test_split(X_real, y_real, test_size=0.3)
+        
+        # 1. Baseline (R -> R)
+        model_rr = XGBClassifier().fit(X_r_train, y_r_train)
         acc_rr = accuracy_score(y_r_test, model_rr.predict(X_r_test))
-
-        # TSTR S→R
-        model_sr = XGBClassifier(eval_metric="logloss", verbosity=0)
-        model_sr.fit(X_synth, y_synth)
+        
+        # 2. TSTR (S -> R)
+        model_sr = XGBClassifier().fit(X_synth, y_synth)
         acc_sr = accuracy_score(y_r_test, model_sr.predict(X_r_test))
-
-        # TRTS R→S
+        
+        # 3. TRTS (R -> S)
         acc_rs = accuracy_score(y_synth, model_rr.predict(X_synth))
-
+        
         return {
             "baseline_accuracy": float(acc_rr),
-            "tstr_accuracy":     float(acc_sr),
-            "trts_accuracy":     float(acc_rs),
-            "performance_drop":  float(max(0, acc_rr - acc_sr)) * 100,
+            "tstr_accuracy": float(acc_sr),
+            "trts_accuracy": float(acc_rs),
+            "performance_drop": float(max(0, acc_rr - acc_sr)) * 100
         }
-
     except Exception as e:
         print(f"Utility Error: {e}")
-        return {"performance_drop": 0.0, "tstr_accuracy": 0.0,
-                "trts_accuracy": 0.0, "baseline_accuracy": 0.0}
-
+        return {"performance_drop": 100.0}
 
 def check_linkability(real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> Dict[str, Any]:
-    """Privacy audit: checks for exact row matches between real and synthetic data."""
-    real_set  = set(map(tuple, real_data.astype(str).values))
-    synth_set = set(map(tuple, synthetic_data.astype(str).values))
-    matches   = len(real_set.intersection(synth_set))
+    """Privacy Audit: Exact matches."""
+    real_set = set(map(tuple, real_data.values))
+    synth_set = set(map(tuple, synthetic_data.values))
+    matches = len(real_set.intersection(synth_set))
     return {"exact_matches": matches, "is_compliant": matches == 0}

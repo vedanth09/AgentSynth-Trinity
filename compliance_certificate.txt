@@ -2,24 +2,24 @@
 ================================================================================
 AGENT-SYNTH TRINITY: COMPLIANCE CERTIFICATE
 ================================================================================
-Timestamp: 2026-03-08 20:16:20 UTC
-Domain:    Finance
+Timestamp: 2026-03-09 22:19:16 UTC
+Domain:    Healthcare
 Status:    COMPLIANCE CLEARED (Art. 25 GDPR)
 --------------------------------------------------------------------------------
 
 1. FIDELITY ASSESSMENT
-   - Average Wasserstein Distance:  0.0471
-   - Correlation Similarity Score:  0.6535
+   - Average Wasserstein Distance:  0.0334
+   - Correlation Similarity Score:  0.5889
    - MMD Score:                     0.0632
 
 2. UTILITY ASSESSMENT
-   - TSTR Baseline Comparison:      0.00% Drop
-   - Model Robustness (TRTS):       0.87 Accuracy
+   - TSTR Baseline Comparison:      7.33% Drop
+   - Model Robustness (TRTS):       0.72 Accuracy
 
 3. PRIVACY ASSESSMENT
    - (ε, δ)-DP Parameters:         ε=1.00, δ=1e-5
-   - MIA Risk Score:                0.69 (Target < 0.65)
-   - k-Anonymity Level:             k=14
+   - MIA Risk Score:                0.73 (Target < 0.65)
+   - k-Anonymity Level:             k=8
 
 --------------------------------------------------------------------------------
 This certificate verifies that the synthetic data asset has undergone rigorous 
